@@ -1,0 +1,296 @@
+[[introduction]]
+[preface]
+== 导论
+
+// TODO (CC): remove "preface" marker from this chapter and check if they renumber correctly
+// with this as zero. figures in this chapter should be "Figure 0-1 etc"
+
+=== We Designs Go Wrong 为什么?
+
+What comes to mind when you hear the word  chaos?  也许你认为是 no。
+证券交易所,或贵,房在上午的混乱和磨损中
+jumbled. 当你想到              ,也许你想到一个空房间,
+平静和平静。 但对于科学家来说,混乱的特点是同质性
+按复杂性(差异)和顺序排列。
+
+////
+IDEA [SG] Found previous paragraph a bit confusing. 似乎表明:
+科学家会说,已下令进行is存交换。 I feel like you
+想谈论 &quot; Entropy &quot; ,但不愿放弃这一rab。
+////
+
+For example, a well-tended garden is a highly ordered system. Gardeners define
+道路和围栏的边界,并标明流ds床或 vegetable菜
+patches. Over time, the garden evolves, growing richer and thicker; but without without
+花园的蓄意努力将充满生气。 Weeds and grasses will choke out
+覆盖道路的其他植物,直至最终每个部分都看看病
+同样,这种情况再次发生,而且没有得到管理。
+
+Software systems, too, tend toward chaos. 当我们首先开始建设新楼时
+我们有宏伟的设想,即我们的守则将是清洁的,而且是有条不,的,
+随着时间的推移,我们发现它收集了洗劫和ed的案件,并最终造成混乱。
+morass of manager classes and util modules. We find that our sensibly layered
+结构本身已经崩溃,就像一个og大的 tri。 Chaotic
+软件系统的特点是功能相同:
+拥有域内知识,发送电子邮件和进行伐木;
+不进行计算但确实从事I/O的班级;以及一切加班
+to everything else so that changing any part of the system becomes fraught with
+危险。 软件工程师拥有自己的任期,这一点非常普遍
+chaos: the Big Ball of Mud antipattern (<<bbom_image>>).
+
+[[bbom_image]]
+.A real-life dependency diagram (source: https://oreil.ly/dbGTW["Enterprise Dependency: Big Ball of Yarn"] by Alex Papadimoulis)
+image::images/apwp_0001.png[]
+
+TIP: A big ball of mud is the natural state of software in the same way that wilderness
+    是你的花园的自然状态。 It takes energy and direction to
+    防止崩溃。
+
+Fortunately, the techniques to avoid creating a big ball of mud aren complext complex.
+
+// IDEA:  talk about how architecture enables TDD and DDD (ie callback to book
+// subtitle)
+
+=== 限制和限制
+
+归纳和抽象是我们大家都持续接触的工具。
+作为规划者,即使我们都捐赠了所有这些准确的词语。 Allow us to dwell
+它们是该书的一个反复出现的主题。
+
+encapsulation 包括两个密切相关的想法:简化
+行为和隐藏数据。 In this discussion, we.re using the first sense. 我们
+确定在我们守则中需要完成的任务
+and giving that task to a well- defined object or function. 我们呼吁该目标或职能
+abstraction .
+
+//DS: not sure I agree with this definition.  more about establishing boundaries?
+
+Take a look at the following two snippets of Python code:
+
+
+[[urllib_example]]
+.Do a search with urllib
+====
+[source,python]
+----
+import json
+from urllib.request import urlopen
+from urllib.parse import urlencode
+
+params = dict(q='Sausages', format='json')
+handle = urlopen('http://api.duckduckgo.com' + '?' + urlencode(params))
+raw_text = handle.read().decode('utf8')
+parsed = json.loads(raw_text)
+
+results = parsed['RelatedTopics']
+for r in results:
+    if 'Text' in r:
+        print(r['FirstURL'] + ' - ' + r['Text'])
+----
+====
+
+[[requests_example]]
+.提出请求
+====
+[source,python]
+----
+import requests
+
+params = dict(q='Sausages', format='json')
+parsed = requests.get('http://api.duckduckgo.com/', params=params).json()
+
+results = parsed['RelatedTopics']
+for r in results:
+    if 'Text' in r:
+        print(r['FirstURL'] + ' - ' + r['Text'])
+----
+====
+
+Both code listings do the same thing: they submit form-encoded values
+to a URL in order to use a search engine API. 但是,第二种比较简单。
+and understand because it operates at a higher level of abstraction.
+
+我们仍然可以进一步采取这一步骤,确定并命名我们的任务
+希望守则为我们服务,并使用甚至更高层次的抽象来进行
+It explicit:
+
+[[ddg_example]]
+.Do a search with the duckduckgo client library
+====
+[source,python]
+----
+import duckduckpy
+for r in duckduckpy.query('Sausages').related_topics:
+    print(r.first_url, ' - ', r.text)
+----
+====
+
+利用抽象使行为成为一种强大的工具
+代码更明确、更可检验,更便于维持。
+
+NOTE: In the literature of the object-oriented (O) world, one of the classic
+    这种方法的特征被称为
+    http://www.wirfs-brock.com/Design.html[_responsibility-driven design ];
+    它使用 roles 和 responsibilities 而不是 tasks 。
+    要点是思考行为准则,而非行为准则。
+    in terms of data or algorithms.footnote:[If you've come across
+    class-responsibility-collaborator (CRC) cards, they're
+    推动同样的事情:关于责任的思考有助于你决定如何分割事情。 ]
+
+.限制和限制
+*******************************************************************************
+In a traditional OO language like Java or C#, you might use an abstract base
+Category (ABC) or an interface to define an abstraction. In Python you can (and we
+有时会使用英国广播公司,但你也很乐意地依赖模拟打字。
+
+The abstraction can just mean PIthe public API of the thing youPIre using"a
+功能名称加上一些论点,例如。
+*******************************************************************************
+
+这本书中的大多数模式涉及选择抽象,因此,你可以选择。
+每一章都有许多实例。 此外,
+<<chapter_03_abstractions>>专门讨论一些一般的 he度
+for choosing abstractions.
+
+
+=== 消耗
+
+登载和抽象有助于我们隐藏细节和保护
+我们数据的一致性,但我们也需要注意互动
+在我们的物体和职能之间。 一项职能、模块或用途
+另外,我们说,相互依赖对方。 这些依赖性构成 a
+网络或图表。
+
+In a big ball of mud, the dependencies are out of control (as you saw in
+<<bbom_image>>). 很难改变图形的一 no线,因为
+有可能影响该系统的许多其他部分。 Layered
+结构是解决这一问题的一种方式。 In a layered architecture,
+We divide our code into discrete categories or roles, and we introduce rules
+关于哪类编码可以相互呼唤。
+
+One of the most common examples is the  three-layered architecture  shown in
+<<layered_architecture1>>.
+
+[role="width-75"]
+[[layered_architecture1]]
+.结构
+image::images/apwp_0002.png[]
+[role="image-source"]
+----
+[ditaa, apwp_0002]
++----------------------------------------------------+
+|                Presentation Layer                  |
++----------------------------------------------------+
+                          |
+                          V
++----------------------------------------------------+
+|                 Business Logic                     |
++----------------------------------------------------+
+                          |
+                          V
++----------------------------------------------------+
+|                  Database Layer                    |
++----------------------------------------------------+
+----
+
+
+陈旧的架构也许是建立企业的最常见模式
+软件。 在这个模式中,我们有用户的内在组成部分,可成为网络
+页面、API或指挥线;这些用户的接口
+有一个商业逻辑层面,包含我们的业务规则和我们的工作流程;
+最后,我们有一个数据库层,负责储存和检索
+data.
+
+就本书的其余部分而言,我们将有系统地转而
+model inside out by obeying one simple principle.
+
+
+[[dip]]
+=== 扶养费
+
+你可能熟悉 &quot; 独立转换原则 &quot; ,因为
+It its the  D  in SOLID.footnote:[SOLID is an acronym for Robert C. Martin's five principles of object-oriented
+设计:单一责任,开放供延长,但
+Liskov替换、界面隔离和
+受扶养人换代。 See https://oreil.ly/UFM7U["S.O.L.I.D: The First 5 Principles of Object-Oriented Design"] by Samuel Oloruntoba.]
+
+Unfortunately, we can't illustrate the DIP by using three tiny code listings as
+我们做了概括。 然而,整个<<part1>>基本上是一个工作
+Examples of implementing the DIP throughout an application, so youllll get
+你举出具体例子。
+
+与此同时,我们可以谈论国际保护部的正式定义:
+
+// [SG] reference?
+
+1.  高级别模块不应依赖低级模块。 Both should
+    取决于抽象。
+
+2.  限制不应取决于细节。 Instead, details should depend on
+    abstractions.
+
+但这意味着什么? Let Lets take it bit by bit.
+
+你的组织真正关心的守则是高级单元。
+也许你为一家制药公司工作,你的高级单元处理
+with patients and trials. 也许你为银行和你的高级别工作
+管理贸易和交流的单元。 软件的高级模块
+系统是处理我们现实世界的职能、班级和包件
+概念。
+
+相比之下, &quot; 低级单元 &quot; 是贵组织采用的编码
+Care about. It.s unlikely that your HR department gets excited about filesystems or network sockets. ItTTs not often that you discuss SMTP, HTTP,
+or AMQP with your finance team. For our nontechnical stakeholders, these
+低级概念是有趣的或相关的。 All they care about is
+高级别概念是否正确发挥作用。 如果工资按时发放,你
+企业不大可能照顾到这是否是错误的工作或转化功能
+running on Kubernetes.
+
+         进口 或 calls , necessarily, but rather a more
+general idea that one module  knows about  or  needs  another module.
+
+而我们也提到已经的 &quot; 限制 &quot; :它们是简化的界面。
+encapsulate behavior, in the way that our duckduckgo module encapsulated a
+搜索引.
+
+[quote,David Wheeler]
+____
+计算机科学的所有问题可以通过增加另一个层次来解决。
+间接。
+____
+
+因此,投资促进机构第一部分说,我们的业务守则应该取决于
+Technical details; instead, both should use abstractions.
+
+为什么? 广泛地说,因为我们希望能够独立地改变它们
+other. 高级别模块应对业务容易改变
+needs. 低级模块(尾料)在实践中往往更难
+变化:考虑重新确定功能名称相对于定义、测试、
+and deploying a database migration to change a column name. 我们dont
+想要改变商业逻辑,以减缓,因为它们紧密结合
+to low-level infrastructure details. 但是,同样重要的是要 
+能够在必要时改变你的基础设施细节(思考
+举例来说,打造一个数据库,无须对你进行修改
+business layer. 在它们之间添加抽象(著名外语)
+间接层允许两者分别改变(更多)
+other.
+
+第二部分更加ster。 限制不应取决于
+细节似乎足够清楚,但尾料应依赖抽象 is
+难以想象。 我们的抽象如何取决于
+详细内容? 到我们到达<<chapter_04_service_layer>>时为止,
+We well have a concrete example that should make this all a bit clearer.
+
+
+=== A Place for All Our Business Logic: The 领域模型（Domain Model）
+
+但是,在我们能够把我们三层的架构付诸东流之前,我们需要
+更多地谈论这一中层:高级别模块或企业
+逻辑。 我们设计错误的最常见原因是:
+商业逻辑贯穿于我们整个应用的层面,
+难以确定、理解和改变。
+
+<<chapter_01_domain_model>>显示如何建立企业
+layer with a  领域模型（Domain Model）  pattern. The rest of the patterns in <<part1>> show
+我们如何能够使这一领域模式易于改变,并且没有低级关切
+选择适当的抽象,并不断应用国际保护司。

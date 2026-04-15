@@ -1,0 +1,876 @@
+[[chapter_08_events_and_message_bus]]
+== 事件与消息总线（Message Bus）
+
+((ventevents and the message bus bus, id="ix evntMBnt)))
+迄今为止,我们花了许多时间和精力处理一个简单的问题,我们可以这样处理。
+很容易与Django解决。 如果提高可试验性,你可能会问
+表达是值得所有努力的。
+
+然而,在实践中,我们发现,这并不是提供新闻的明显特征。
+of our codebases: it its the goop around the edge. 报告及许可,
+and workflows that touch a zillion objects.
+
+我们的例子将是典型的通知要求:当我们能够分配时
+an order because we were out of stock, we should alert the buying team. They Theyll
+通过购买更多库存来解决这一问题,所有这一切都将是好的。
+
+For a first version, our product owner says we can just send the alert by email.
+
+让我们看一看我们的结构在我们需要在某些方面pl大的时候是如何存在的
+mundane stuff that makes up so much of our systems.
+
+We Well start by doing the simplest, most expeditious thing, and talk about
+为什么正是这种决定导致我们来到穆德的Big Ball。
+
+((M消息总线（Message Bus） pattern"))
+((主要活动模式))
+((ventevents and the message bus bus, "events flowing through the system")))
+(( &quot; 工作模式单位 &quot; 、 &quot; 连接域面活动和信息 bus &quot; )))
+Then we well show how to use the  Domain Events  pattern to separate side effects from our
+Use cases, and how to use a simple  消息总线（Message Bus）  pattern for triggering behavior
+Based on those events. We Well show a few options for creating
+这些事件和如何将它们带到电报公共汽车上,并最终显示 we
+如何改变工作模式,以便将两者联系起来,
+as previewed in <<message_bus_diagram>>.
+
+
+[[message_bus_diagram]]
+.通过系统进行的活动
+image::images/apwp_0801.png[]
+
+// TODO: add before diagram for contrast (?)
+
+
+[TIP]
+====
+本章的守则载于
+Chapter 08 events and message bus branch https://oreil.ly/M-JuL[on GitHub]:
+
+----
+git clone https://github.com/cosmicpython/code.git
+cd code
+git checkout chapter_08_events_and_message_bus
+# or to code along, checkout the previous chapter:
+git checkout chapter_07_aggregate
+----
+====
+
+
+=== Avoiding Making a Mess
+
+(( controlweb controllers, sending email alerts via, avoiding"))
+((ventevents and the message bus bus, "sending email alerts when out of stock", id="ix evntMBeml")))
+((电子邮件提醒,发送到库存时,id="ix email")))
+So. 当我们没有库存时,电子邮件提醒。 当我们有象 &quot; 真正 &quot; 与核心领域无关的新要求时,它太容易。
+开始将这些事情倾弃到我们的网络控制者。
+
+
+==== First, Let's Avoid Making a Mess of Our Web Finances
+
+((ventevents and the message bus bus, "sending email alerts when out of stock", "avoiding messing up web controllers")))
+As a one-off hack, this  might  be OK:
+
+[[email_in_flask]]
+.归根结底是否会错? (src/allocation/entrypoints/flask app.py)
+====
+[source,python]
+[role="skip"]
+----
+@app.route("/allocate", methods=["POST"])
+def allocate_endpoint():
+    line = model.OrderLine(
+        request.json["orderid"],
+        request.json["sku"],
+        request.json["qty"],
+    )
+    try:
+        uow = unit_of_work.SqlAlchemyUnitOfWork()
+        batchref = services.allocate(line, uow)
+    except (model.OutOfStock, services.InvalidSku) as e:
+        send_mail(
+            "out of stock",
+            "stock_admin@made.com",
+            f"{line.orderid} - {line.sku}"
+        )
+        return {"message": str(e)}, 400
+
+    return {"batchref": batchref}, 201
+----
+====
+
+...but it tos easy to see how we can quickly end up in a mess by patching things up
+如此。 Sending email isnTTt the job of our HTTP layer, and weTTd like to be
+能够联合测试这一新特点。
+
+
+==== And Let Lets Not Make a Mess of Our Model Either
+
+((dodomain model", "email sending code in, avoiding"))
+((ventevents and the message bus bus, "sending email alerts when out of stock", voavoiding messing up domain model")))
+假设我们不想把这一守则纳入我们的网络控制者,因为
+我们希望它们尽可能完美无缺,我们也许会考虑把它放在正确的位置。
+来源:
+
+[[email_in_model]]
+.我们模式中的电子邮件传送代码是热爱的(热/分配/主要/模式间皮)
+====
+[source,python]
+[role="non-head"]
+----
+    def allocate(self, line: OrderLine) -> str:
+        try:
+            batch = next(b for b in sorted(self.batches) if b.can_allocate(line))
+            #...
+        except StopIteration:
+            email.send_mail("stock@made.com", f"Out of stock for {line.sku}")
+            raise OutOfStock(f"Out of stock for sku {line.sku}")
+----
+====
+
+But that thats even worse! 我们希望我们的模式能够依赖任何依赖性
+infrastructure concerns like `email.send_mail`.
+
+电子邮件是 me干净流的不舒服 me
+of our system. 我们想要把我们的领域模式放在规则上
+canYou can cant allocate more stuff than is actually available."
+
+
+==== Or the 服务层（Service Layer）!
+
+((serviceservice layer","sending email alerts when out of stock, avoiding"))
+((ventevents and the message bus bus, "sending email alerts when out of stock", "out of place in the service layer")))
+TTry to allocate some stock, and send an email if it fails is is
+A example of work flow orchestration: it its a set of steps that the system has
+to follow to [.keep-together]#achieve# a goal.
+
+We Weve written a service layer to manage orchestration for us, but even here
+The feature feels out of place:
+
+[[email_in_services]]
+.在服务层中, it出地点(机/地点/服务/服务/服务.间))
+====
+[source,python]
+[role="non-head"]
+----
+def allocate(
+    orderid: str, sku: str, qty: int,
+    uow: unit_of_work.AbstractUnitOfWork,
+) -> str:
+    line = OrderLine(orderid, sku, qty)
+    with uow:
+        product = uow.products.get(sku=line.sku)
+        if product is None:
+            raise InvalidSku(f"Invalid sku {line.sku}")
+        try:
+            batchref = product.allocate(line)
+            uow.commit()
+            return batchref
+        except model.OutOfStock:
+            email.send_mail("stock@made.com", f"Out of stock for {line.sku}")
+            raise
+----
+====
+
+((电子邮件提醒,发送到储存时,开始发送=ixix email")))
+((ventevents and the message bus bus, "sending email alerts when out of stock", startref="ix evntMBeml")))
+Catching an exception and reraising it? It could be worse, but it its
+确实使我们感到高兴。 为什么很难找到合适的住所
+This code?
+
+=== 单一责任原则
+
+((单一责任原则)))
+((ventevents and the message bus bus, "sending email alerts when out of stock", viviolating the single responsibility principle")))
+Really, this is a violation of the  single responsibility principle  (SRP).footnote:[
+这一原则是https://oreil.ly/AIdSD[SOLID].]的 S 
+我们的使用情况是分配的。 Our endpoint, service function, and domain methods
+全称为 &quot; 全天候 &quot; #`allocate`#,而不是
+`allocate_and_send_mail_if_out_of_stock`.
+
+TIP: Rule of thumb: if you can't describe what your function does without using using
+    RPthenRP or "and, you you might be violating the SRP.
+
+One formulation of the SRP is that each class should have only a single reason
+to change. When we switch from email to SMS, we shouldn havet have to update our
+`allocate()`功能,因为这种功能显然是一项单独的责任。
+
+((学习))
+((chesorchestration", chanchanging to choreography")))
+为了解决这个问题,我们会分解ches地
+into separate steps so that the different concerns dondont get tangled up.footnote:[
+我们的技术审查员Ed Jung想说,当你改变必要的流动控制时
+to event-based flow control, you're changing  orchestration  into  choreography .]
+域网模式的工作是了解库存的遗漏,但责任
+发出警报属于其他地方。 我们应当能够改变这一特点
+on or off, or to switch to SMS notifications instead, without needing to change
+the rules of our domain model.
+
+我们还希望使服务层不再详细执行。 我们
+欲将受扶养人 in依原则适用于通知,以便我们
+服务层取决于抽象,其方式与我们避免视具体情况而定
+on the database by using a unit of work.
+
+
+=== All Aboard the 消息总线（Message Bus）!
+
+我们将在这里介绍的模式是 Domain Events 和 消息总线（Message Bus） 。
+我们可以以几种方式执行这些规则,这样,我们就能够展示夫妇,然后再解决。
+这是我们最喜欢的。
+
+// TODO: at this point the message bus is really just a dispatcher.  could also mention
+// pubsub.  once we get a queue, it's more justifiably a bus
+
+
+==== 示范记录活动
+
+((ventevents and the message bus bus, cordrecording events")))
+First, rather than being concerned about emails, our model will be in charge of
+记录所发生事物的物件。 使用信息
+公共汽车对事件作出反应并援引新的行动。
+
+
+==== 事件是简单的数据分类
+
+((datadataclasses","eventsvent))
+((ventevents and the message bus bus, "events as simple dataclasses")))
+喷口是一种价值的物体。 Events don't have any behavior, because
+它们完全是数据结构。 我们一向用语言命名活动
+领域,我们认为它们是我们的领域模式的一部分。
+
+We could store them in model.py , but we may as well keep them in their own file
+ (这也许是考虑重新确定一个名录的好时机
+domain  so that we have  domain/model.py  and  domain/events.py :
+
+[role="nobreakinside less_space"]
+[[events_dot_py]]
+.活动班(rc/allocation/domain/events.py)
+====
+[source,python]
+----
+from dataclasses import dataclass
+
+
+class Event:  #<1>
+    pass
+
+
+@dataclass
+class OutOfStock(Event):  #<2>
+    sku: str
+----
+====
+
+
+we1, 一旦我们有若干事件,我们就认为让父母亲有帮助。
+    可以储存共同特征的班级。 对类型也有用
+    如你不久所看到的那样,我们的信息公共汽车的.障。
+
+P2 P `dataclasses`对域事件也很 great。
+
+
+
+==== The Model Raises Events
+
+((ventevents and the message bus bus, dodomain model raising events")))
+((dodomain model", "raising events"))
+当我们的域模型记录事实时,我们说这是一个事件。
+
+((agaggregates", testtesting Product object to raise events"))
+在这里,我们将从外部看什么;如果我们要求`Product`分配
+但可以说,它应该是一个事件:
+
+
+[[test_raising_event]]
+.测试我们的总量,以提出事件(试验/无声/试验性产品)。
+====
+[source,python]
+----
+def test_records_out_of_stock_event_if_cannot_allocate():
+    batch = Batch("batch1", "SMALL-FORK", 10, eta=today)
+    product = Product(sku="SMALL-FORK", batches=[batch])
+    product.allocate(OrderLine("order1", "SMALL-FORK", 10))
+
+    allocation = product.allocate(OrderLine("order2", "SMALL-FORK", 1))
+    assert product.events[-1] == events.OutOfStock(sku="SMALL-FORK")  #<1>
+    assert allocation is None
+----
+====
+
+<1 Our 我们的总量将暴露一个新的特征,称为`.events`,其中将包括
+    a 以`Event`物体形式提供的关于所发生事件的事实清单。
+
+这里,该模式所考虑的内容是:
+
+
+[[domain_event]]
+.模型提出一个领域活动(机/地点/主要/模块间.)
+====
+[source,python]
+[role="non-head"]
+----
+class Product:
+    def __init__(self, sku: str, batches: List[Batch], version_number: int = 0):
+        self.sku = sku
+        self.batches = batches
+        self.version_number = version_number
+        self.events = []  # type: List[events.Event]  #<1>
+
+    def allocate(self, line: OrderLine) -> str:
+        try:
+            #...
+        except StopIteration:
+            self.events.append(events.OutOfStock(line.sku))  #<2>
+            # raise OutOfStock(f"Out of stock for sku {line.sku}")  #<3>
+            return None
+----
+====
+
+.1. Here.s our new `.events` attribute in use.
+
+,2,,而不是直接援引某些电子邮件代码,我们记录了这些数字
+    事件发生地点的事件,只使用域的语言。
+
+We3 We We're also going to stop raising an exception for the out-of-stock
+    case. 该活动将从事这一工作,例外情况是正在做的工作。
+
+
+
+NOTE: We Were actually addressing a code smell we had until now, which is that we were
+    https://oreil.ly/IQB51[using
+    Except for control flow]. In general, if you,re implementing domain
+    各种事件都提出了描述同一领域概念的例外。
+    As you itll see later when we handle events in the 工作单元（Unit of Work） pattern, it its
+    混.一谈事件和例外情况。
+    ((控制流量,使用例外 for))
+    ((ceptionexceptions", usingusing for control flow"))
+
+
+
+==== The 消息总线（Message Bus） Maps Events to Handlers
+
+((mesmessage bus bus,"mapping events to handlers")))
+((ventevents and the message bus bus, mesmessage bus mapping events to handlers")))
+((pupublish-subscribe system", mesmessage bus as", handhandlers subscribed to receive events"))
+我看到这一事件时,我应援引以下信息:
+handler function." 换言之,它是一个简单的出版订阅系统。
+洗手者是接收我们向公共汽车出版的活动的 名字。 It
+更难做到,我们通常用独裁方式执行:
+
+[[messagebus]]
+.Simple message bus (src/allocation/service layer/messagebus.py)
+====
+[source,python]
+----
+def handle(event: events.Event):
+    for handler in HANDLERS[type(event)]:
+        handler(event)
+
+
+def send_out_of_stock_notification(event: events.OutOfStock):
+    email.send_mail(
+        "stock@made.com",
+        f"Out of stock for {event.sku}",
+    )
+
+
+HANDLERS = {
+    events.OutOfStock: [send_out_of_stock_notification],
+}  # type: Dict[Type[events.Event], List[Callable]]
+----
+====
+
+NOTE: Note that the message bus as implemented doesn bust give us concurrency because
+    届时只有一名手持。 我们支持的目标
+    平行的面包,但从概念上区分任务,并保持每个世界
+    as small as possible. 这有助于我们理解代码,因为
+    recirecipepe for how to run each use case is written in a single place. 见
+    旁边。
+    (( &quot; Concurrency",  messagenot provided by message bus implementation") &quot; )
+
+[role="nobreakinside less_space"]
+[[celery_sidebar]]
+.Is This like Celery?
+*******************************************************************************
+((mesmessage bus bus,"Celery and and)))
+Celery  is a popular tool in the Python world for deferring self-contained
+((CCelery tool")) The message bus werere
+这里讲的是非常不同的,所以对上述问题的简短回答是没有的;我们的信息巴士
+更常见于快捷 Express果、UI活动大厅或行为者框架。
+// TODO: this "more in common with" line is not super-helpful atm.  maybe onclick callbacks in js would be a more helpful example
+
+((外部活动))
+If you do have a requirement for moving work off the main thread, you
+仍然可以使用我们基于事件的流,,但我们建议你
+Use  external events  for that. 更多讨论
+<<chapter_11_external_events_tradeoffs>>, but essentially, if you
+* 采用一种办法,将事件持续到一个集中的仓库,
+可订阅其他集装箱或其他微量服务。 Then
+that same concept of using events to separate responsibility
+单一流程/服务内各单位的工作可推广
+同一集装箱内可能不同的多个流程
+服务,或完全不同的微型服务。
+
+If you follow us in this approach, your API for distributing tasks
+是你的活动[全]#class ##or a JSON representation of them. 允许
+你在分配任务时表现出很大的灵活性;
+必定是y服务。 Celeryerys API for distributing tasks is
+基本 &quot; 功能名称加论据 &quot; ,这更具有限制性
+and Python-only.
+
+*******************************************************************************
+
+
+=== Option 1: The 服务层（Service Layer） takes Events from the Model and Puts Them on the 消息总线（Message Bus）
+
+((dodomain model", ventevents from, passing to message bus in service layer")))
+((mesmessage bus bus, serviceservice layer with explicit message bus bus))
+((服务层 layer,从模型中采集活动,将之置于信息 bus))
+((ventevents and the message bus bus, "service layer with explicit message bus bus))
+((pupublish-subscribe system", mesmessage bus as,, pupublishing step")))
+Our domain model raises events, and our message bus will call the right
+每当事件发生时就要处理。 现在我们需要的是将两者联系起来。 我们
+需要某种东西从模型中赶走事件,并将其传递到信息
+bus-the  publishing  step.
+
+要做到这一点,最简单的途径是将一些守则纳入我们的服务层:
+
+[[service_talks_to_messagebus]]
+.服务层,有明确的电文客车(火车/住宿/服务/服务。 间))
+====
+[source,python]
+[role="non-head"]
+----
+from . import messagebus
+...
+
+def allocate(
+    orderid: str, sku: str, qty: int,
+    uow: unit_of_work.AbstractUnitOfWork,
+) -> str:
+    line = OrderLine(orderid, sku, qty)
+    with uow:
+        product = uow.products.get(sku=line.sku)
+        if product is None:
+            raise InvalidSku(f"Invalid sku {line.sku}")
+        try:  #<1>
+            batchref = product.allocate(line)
+            uow.commit()
+            return batchref
+        finally:  #<1>
+            messagebus.handle(product.events)  #<2>
+----
+====
+
+<1> We keep the `try/finally` from our ugly earlier implementation (we haven't)
+    然而,仅`OutOfStock`,却 go掉了 all 的例外情况。
+
+<2, 但现在不是直接依赖电子邮件基础设施,
+    The service layer is just in charge of passing events from the model
+    up to the message bus.
+
+这已经避免了我们在我们的美丽中的一些ug模。
+执行,我们有好几个系统,如这一系统,
+Services layer explicitly collects events from aggregates and passes them to
+the message bus.
+
+
+=== Option 2: The 服务层（Service Layer） Raises Its Own Events
+
+((serviceservice layer",raisingraising its own events"))
+((ventevents and the message bus bus, serviceservice layer raising its own events"))
+((mesmessage bus bus,"service layer raising events and calling messagebus.handle")))
+这里使用的另一种变式是将服务层定在
+in charge of creating and raising events directly, rather than having them
+域模型提出的:
+
+
+[[service_layer_raises_events]]
+.服务层直接打电话(机/地点/服务/服务/服务。 间)
+====
+[source,python]
+[role="skip"]
+----
+def allocate(
+    orderid: str, sku: str, qty: int,
+    uow: unit_of_work.AbstractUnitOfWork,
+) -> str:
+    line = OrderLine(orderid, sku, qty)
+    with uow:
+        product = uow.products.get(sku=line.sku)
+        if product is None:
+            raise InvalidSku(f"Invalid sku {line.sku}")
+        batchref = product.allocate(line)
+        uow.commit() #<1>
+
+        if batchref is None:
+            messagebus.handle(events.OutOfStock(line.sku))
+        return batchref
+----
+====
+
+,1, 像以前一样,我们承诺即使我们未能分配,因为代码更简单。
+    更容易地说明:我们总是承诺,除非某种东西会发生。
+    错误。 当我们已经改变了任何东西时,我们就会感到安全,保持现状。
+    code uncluttered.
+
+同样,我们在生产中应用了这一模式
+way. What works for you will depend on the particular trade-offs you face, but
+我们想向你们表明我们认为是最令人leg目的解决办法。
+将工作单位负责收集和筹集活动。
+
+
+=== Option 3: The UoW Publishes Events to the 消息总线（Message Bus）
+
+((mesmessage bus bus,Uni工作单元（Unit of Work） publishing events to"))
+((ventevents and the message bus bus, UUoW publishes events to message bus bus)))
+((Uni工作单元（Unit of Work） pattern", UUoW publishing events to message bus bus))
+The UoW already has a `try/finally`, and it knows about all the aggregates
+目前正在发挥作用,因为它可以进入存储处。 So it its
+a good place to spot events and pass them to the message bus:
+
+
+[[uow_with_messagebus]]
+.The UoW meets the message bus (src/allocation/service layer/unit of work.py)
+====
+[source,python]
+----
+class AbstractUnitOfWork(abc.ABC):
+    ...
+
+    def commit(self):
+        self._commit()  #<1>
+        self.publish_events()  #<2>
+
+    def publish_events(self):  #<2>
+        for product in self.products.seen:  #<3>
+            while product.events:
+                event = product.events.pop(0)
+                messagebus.handle(event)
+
+    @abc.abstractmethod
+    def _commit(self):
+        raise NotImplementedError
+
+...
+
+class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
+    ...
+
+    def _commit(self):  #<1>
+        self.session.commit()
+----
+====
+
+We1 We We'll change our commit method to require a private `._commit()`
+    下级方法。
+
+committing2, After committing, we run through all the objects that our
+    存储处已经看到并把他们的活动转给电讯车。
+
+<3 That 这取决于已装载的总量的保存轨道
+    如你在下一份清单中看到的那样,使用新的属性`.seen`。
+    ((reprepositories", reprepository keeping track of aggregates passing through it")))
+    ((agaggregates", reprepository keeping track of aggregates passing through it")))
+
+NOTE: Are you wondering what happens if one of the
+    操作者是否失败? We Well discuss error handling in detail in <<chapter_10_commands>>.
+
+
+//IDEA: could change ._commit() to requiring super().commit()
+
+
+[[repository_tracks_seen]]
+.过路的重复跟踪总量(热/地点/配方/复印件/复印件)。
+====
+[source,python]
+----
+class AbstractRepository(abc.ABC):
+    def __init__(self):
+        self.seen = set()  # type: Set[model.Product]  #<1>
+
+    def add(self, product: model.Product):  #<2>
+        self._add(product)
+        self.seen.add(product)
+
+    def get(self, sku) -> model.Product:  #<3>
+        product = self._get(sku)
+        if product:
+            self.seen.add(product)
+        return product
+
+    @abc.abstractmethod
+    def _add(self, product: model.Product):  #<2>
+        raise NotImplementedError
+
+    @abc.abstractmethod  #<3>
+    def _get(self, sku) -> model.Product:
+        raise NotImplementedError
+
+
+class SqlAlchemyRepository(AbstractRepository):
+    def __init__(self, session):
+        super().__init__()
+        self.session = session
+
+    def _add(self, product):  #<2>
+        self.session.add(product)
+
+    def _get(self, sku):  #<3>
+        return self.session.query(model.Product).filter_by(sku=sku).first()
+----
+====
+
+U1W 要使UoW能够出版新的活动,就必须能够要求
+    本届会议期间使用`Product`物体的存储处。
+    We use a `set` called `.seen` to store them. 这意味着我们的执行工作
+    需要呼叫+++<code>super().__init__()</code>+++。
+    ((监督职能))
+
+parent2 The 母体`add()`法对`.seen`增加物件,现在需要副类
+    to implement `._add()`.
+
+<3> Similarly, `.get()` delegates to a `._get()` function, to be implemented by
+    下级,以获取所看到的物体。
+
+
+NOTE: The use of pass:[cocodecoem>. underscorey()em/em></codeco] methods and subclassing is definitely not
+    你能够实施这些模式的唯一方式。  the
+    本章中的<<get_rid_of_commit,"Exercise for the Reader">>和实验
+    with some alternatives.
+
+After the UoW and Library collaborate in this way to automatically keep
+直径和处理其事件,服务层可以是
+完全没有处理事件的问题:
+((serviceservice layer","totally free of event handling concerns"))
+
+[[services_clean]]
+.服务层再次清洁(机/地点/服务/服务/服务.间))
+====
+[source,python]
+----
+def allocate(
+    orderid: str, sku: str, qty: int,
+    uow: unit_of_work.AbstractUnitOfWork,
+) -> str:
+    line = OrderLine(orderid, sku, qty)
+    with uow:
+        product = uow.products.get(sku=line.sku)
+        if product is None:
+            raise InvalidSku(f"Invalid sku {line.sku}")
+        batchref = product.allocate(line)
+        uow.commit()
+        return batchref
+----
+====
+
+((susuper function", ttweaking fakes in service layer to call")))
+((serviceservice layer",ttweaking fakes in to call super and implement underscorey methods")))
+((fafakingking,"tweaking fakes in service layer to call super and implement underscorey methods")))
+((根据核心方法,在服务层中wetweaking fakes to implement"))
+我们还必须记住,改变服务层的 fa,使之成为服务层的 fa。
+在适当地点呼叫`super()`,并采用 underscore明方法,但
+变化最小:
+
+
+[[services_tests_ugly_fake_messagebus]]
+.服务站需要we(测试/无用/测试服务.间))
+====
+[source,python]
+----
+class FakeRepository(repository.AbstractRepository):
+    def __init__(self, products):
+        super().__init__()
+        self._products = set(products)
+
+    def _add(self, product):
+        self._products.add(product)
+
+    def _get(self, sku):
+        return next((p for p in self._products if p.sku == sku), None)
+
+...
+
+class FakeUnitOfWork(unit_of_work.AbstractUnitOfWork):
+    ...
+
+    def _commit(self):
+        self.committed = True
+
+----
+====
+
+[role="nobreakinside less_space"]
+[[get_rid_of_commit]]
+.退休人员的行使
+******************************************************************************
+
+((继承、避免使用葡萄类))
+((underunderscorey methods", voavoiding by implementing Tracking 仓储（Repository） wrapper class")))
+((对跟踪治疗器类的继承权))
+((reprepositories", TTracker 仓储（Repository） wrapper class")))
+Are you finding all those `._add()` and `._commit()` methods "super-gross," in
+the words of our beloved tech reviewer Hynek? Does it "make you want to beat
+Harry around the head with a plushie snake"? Hey, our code listings are
+只想成为例子,而不是完美的解决办法! Why not go see if you
+可以做得更好吗?
+
+One  composition over inheritance  way to go would be to implement a
+wrapper class:
+
+[[tracking_repo_wrapper]]
+.葡萄酒会增加功能,然后代表(热/ada化器/复印机)
+====
+[source,python]
+[role="skip"]
+----
+class TrackingRepository:
+    seen: Set[model.Product]
+
+    def __init__(self, repo: AbstractRepository):
+        self.seen = set()  # type: Set[model.Product]
+        self._repo = repo
+
+    def add(self, product: model.Product):  #<1>
+        self._repo.add(product)  #<1>
+        self.seen.add(product)
+
+    def get(self, sku) -> model.Product:
+        product = self._repo.get(sku)
+        if product:
+            self.seen.add(product)
+        return product
+----
+====
+
+repository1, 通过对储存库进行拆卸,我们可以将实际的`.add()`光打开
+    and `.get()` methods, avoiding weird underscorey methods.
+
+((Uni工作单元（Unit of Work） pattern", ettgetting rid of underscorey methods in UoW class"))
+See if you can apply a similar pattern to our UoW class in
+order to get rid of those Java-y `_commit()` methods too. You can find the code
+on https://github.com/cosmicpython/code/tree/chapter_08_events_and_message_bus_exercise[GitHub].
+
+((ababstract base classes (ABCs)., itchswitching to typing. (议定书))
+向`typing.Protocol`倾 the所有ABC,是迫使你自己掌握自己
+避免使用继承。 让我们知道你是否真心!!
+******************************************************************************
+
+你也许会开始担心维持这些饥荒将是一个问题
+维持负担。 毫无疑问,它正在发挥作用,但是在我们的经验中也是如此。
+它不是许多工作。 Once your project is up and running, the interface for
+你的存储处和《世界展望》的抽象实际上大大促进了变化。 And if you're
+他们利用英国广播公司帮助提醒你,当事物出去时。
+
+=== Wrap-Up
+
+Domain events give us a way to handle workflows in our system. 我们经常发现,
+听取我们域专家的意见,他们以因果或因果而表达要求
+例如, &quot; 我们试图分配库存,但无
+然后,我们应向采购小组发送电子邮件。
+
+magWhen X, then Y" often tell us about an event that we can make
+具体体现在我们的体系中。 把事件作为我们模式中的一等事物,有助于
+我们使我们的守则更具检验性和可观察性,它有助于孤立关切。
+
+((mesmessage bus bus, propros and cons or trade-offs")))
+((ventevents and the message bus bus, propros and cons or trade-offs")))
+And <<chapter_08_events_and_message_bus_tradeoffs>> shows the trade-off as we
+see them.
+
+[[chapter_08_events_and_message_bus_tradeoffs]]
+[options="header"]
+.主要活动:
+|===
+ProProsConCons
+a a
+* 当我们肩负起责任时,新闻媒介给我们带来了一个好办法。
+  应请求采取多种行动。
+
+* Event handlers are nicely decoupled from the corecorecore application logic,
+  使执行工作稍后改变。
+
+* Domain events are a great way to model the real world, and we can use them
+  在与利益攸关方建模时,作为我们商业语言的一部分。
+
+a a
+
+* 信息巴士是你的头部又一回事;
+  在这个过程中,工作单位为我们带来了一些事件,但也有了想象力。 不是
+  显然,当我们叫`commit`时,我们也要去和发送电子邮件。
+  people.
+
+* What Whats more, that hidden event-handling code executes  synchronously ,
+  意指您的服务级职能
+  doest finish until all the handlers for any events are finished. That
+  可能在你的网络终点造成意想不到的业绩问题
+  (同步处理是可能的,但即使是 more  confusing)。
+  ((同步执行活动处理代码))
+
+* 更一般地说,由活动驱动的工作流程可能混,,因为毕竟会出现这种情况
+  多管齐下,没有单一地点
+  in the system where you can understand how a request will be fulfilled.
+
+* 你也愿意了解你在你之间循环依赖的可能性。
+  活动处理器和无限游说器。
+  ((独立、活动处理者之间循环依赖))
+  ((ventevents and the message bus bus, startref="ix evntMBnt)))
+
+a a
+|===
+
+((agaggregates", chanchanging multiple aggregates in a request"))
+然而,活动不仅有助于发送电子邮件。 In <<chapter_07_aggregate>> we
+花了许多时间说服你确定总量,或
+我们保证一致性的边界。 People often ask, WWhat
+作为请求的一部分,我是否有必要改变多种总量? 现在
+我们拥有回答这个问题所需的工具。
+
+如果我们有两件事情可以是相互孤立的(例如,秩序和秩序)。
+然后,我们可以通过利用各种活动,使这些成果相互一致。 何时
+我们应当找到分配给它的产品。
+and remove the [.keep-together]#allocations#.
+
+[role="nobreakinside less_space"]
+.Domain Events and the 消息总线（Message Bus） Recap
+*****************************************************************
+((ventevents and the message bus bus, dodomain events and message bus recap")))
+((mesmessage bus bus, rerecap"))
+
+活动可以帮助实施单一责任原则:
+    当我们把多重关切混为一谈时,守则就显得ang。 Events can
+    help us to keep things tidy by separating primary use cases from secondary
+    一、
+    我们还利用各种活动在总量之间进行沟通,以便我们作出捐助。
+    需要对多个表格进行长期交易。
+
+向操作人员传递信息:
+    你可以把一个信息巴士看成是一把从事件到事件的地图变成一把 message。
+    消费者。 It doesnnowt kknow of anything about the meaning of events; it justs just
+    a piece of dumb infrastructure for getting messages around the system.
+
+备选案文1:服务层引起事件,并把它们传递到信息公共汽车上:
+    开始使用贵国制度中的事件的最简单方式是从中提炼。
+    在你履行承诺后,打上`bus.handle(some_new_event)`
+    工作单位。
+    ((serviceservice layer",raisingraising events and passing them to message bus bus))
+
+备选方案2:主要模式带来各种事件,服务层将它们传递到信息公共汽车上:
+    The logic about when to raise an event really should live with the model, so
+    我们可以通过从各种事件中挑起事件来改进我们的系统设计和测试能力
+    the domain model. It Its easy for our handlers to collect events off the model
+    objects after `commit` and pass them to the bus.
+    ((dodomain model", "raising events and service layer passing them to message bus bus))
+
+备选方案3:世界妇女从集成中收集活动,并把这些活动传递给公共汽车:
+    将`bus.handle(aggregate.events)`添加到每一位手人是no,因此,我们
+    使我们的工作单位负责提出事件,从而能够起作用
+    被装载物体提出。
+    This is the most complex design and might rely on ORM magic, but it its clean
+    易于使用。
+    ((agaggregates", UUoW collecting events from and passing them to message bus bus)))
+    (( &quot; 工作模式单位 &quot; ,UUoW collecting events from aggregates and passing them to message bus bus))
+
+*****************************************************************
+
+In <<chapter_09_all_messagebus>>, we well look at this idea in more
+详细情况是,我们利用新的信息公交车,建设更加复杂的工作流程。

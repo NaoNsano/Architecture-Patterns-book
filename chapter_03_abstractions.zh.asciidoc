@@ -1,0 +1,857 @@
+[[chapter_03_abstractions]]
+== A Brief Interlude: On Coupling [.keep-together]# and Abstractions#
+
+((bstractionsction, id="ix abs")))
+允许我们就抽象问题进行简短的消退,删除读者。
+We've talked about  abstractions  quite a lot. 储存模式
+For example. But what makes a good
+抽象? 我们想从抽象中做些什么? 它们与测试的关系如何?
+
+
+[TIP]
+====
+本章的守则载于
+Chapter 03 abstractions branch https://oreil.ly/k6MmV[on GitHub]:
+
+----
+git clone https://github.com/cosmicpython/code.git
+git checkout chapter_03_abstractions
+----
+====
+
+
+((kakatastas))
+这本书中隐藏在逃生模式中的一个关键主题是,我们可以使用
+简单的抽象,以隐.细节。 When we,re writing code for fun, or
+in a kata,footnote:[A code kata is a small, contained programming challenge often
+used to practice TDD. 见
+https://web.archive.org/web/20221024055359/http://www.peterprovost.org/blog/2012/05/02/kata-the-only-way-to-learn-tdd/["Kata—The Only Way to Learn TDDD] by Peter Provost.]
+我们能够自由地发挥思想作用,使事情更加ham,并重新制造
+aggressively. 然而,在大规模的系统中,我们却受到制约
+系统其他地方作出的决定。
+
+((cocouplingco))
+((cocohesion, high, between coupled elements"))
+当我们因担心打破组成部分B而无法改变A部分时,我们说
+that the components have become  coupled . 在当地,政变是一件好事:
+a sign that our code is working together, each component supporting the others, all of them
+fitting in place like the gears of a watch. 在贾尔贡,我们说,当这种工作时,我们就说了。
+混合元素之间有高度的co合。
+
+(( MuBall of Mud pattern")))
+((cocoupling", disdisadvantages of of)))
+在全球范围,加权是一种微妙因素:它增加了变化的风险和成本
+我们的守则,有时到我们感到无法作出任何改变的时刻
+all. This is the problem with the Ball of Mud pattern: as the application grows,
+If we were unable to prevent coupling between elements that have no cohesion, that
+在我们不再能够有效发挥作用之前,加倍增加
+改变我们的系统。
+
+((bstractionsction, usingusing to reduce coupling")))
+((cocoupling",  abstractreducing by abstracting away details")))
+We can reduce the degree of coupling within a system
+(<<coupling_illustration1>>)
+(<<coupling_illustration2>>).
+
+[role="width-50"]
+[[coupling_illustration1]]
+.政变地点
+image::images/apwp_0301.png[]
+[role="image-source"]
+----
+[ditaa, apwp_0301]
++--------+      +--------+
+| System | ---> | System |
+|   A    | ---> |   B    |
+|        | ---> |        |
+|        | ---> |        |
+|        | ---> |        |
++--------+      +--------+
+----
+
+[role="width-90"]
+[[coupling_illustration2]]
+.Less coupling
+image::images/apwp_0302.png[]
+[role="image-source"]
+----
+[ditaa, apwp_0302]
++--------+                           +--------+
+| System |      /-------------\      | System |
+|   A    | ---> |             | ---> |   B    |
+|        | ---> | Abstraction | ---> |        |
+|        |      |             | ---> |        |
+|        |      \-------------/      |        |
++--------+                           +--------+
+----
+
+
+
+在这两个图表中,我们有一个子系统,一个依靠一个系统
+the other. In <<coupling_illustration1>>, there is a high degree of coupling between the
+两个;箭头数目表示种类的依赖性
+between the two. 如果我们需要改变制度B,那就有很好的机会
+改革将逐步进入A系统。
+
+然而,在<<coupling_illustration2>>中,我们通过插入一个加权,降低了加权的程度。
+新,更简单。 Because it is simpler, system A has fewer
+各种依赖抽象。 抽象有助于
+Protect us from change by hiding away the complex details of whatever system B
+的确,我们可以改变权利上的ar旋,而不改变左边的ar旋。
+
+[role="pagebreak-before less_space"]
+=== Abstracting State Aids Testability
+
+((bstractions", "abstracting state to aid testability", id="ix absstatestate)))
+((testtesting", ababstracting state to aid testability", id="ix tstabstab))
+((statestatestate,"abstracting to aid testability", id="ix stateabs")))
+((ilefilesystems", wwriting code to synchronize source and target directories", id="ix filesync")))
+Let Lets see an example. Imagine we want to write code for synchronizing two
+文档目录,其中标示来源 和日期:
+
+* 如果档案存在于来文提交人,但不是目的地,则将卷宗复制。
+* If a file exists in the source, but it has a different name than in the destination,
+  将目的地档案重新编号。
+* 如果档案存在于目的地,但不是来源地,则予以删除。
+
+((填写档案)))
+我们的第一项和三项要求非常简单:我们可以比较两项要求。
+List of paths. 然而,我们的第二个是 tr。 To detect renames,
+我们必须检查档案的内容。 为此,我们可以使用洗衣。
+function like MD5 or SHA-1. The code to generate a SHA-1 hash from a file is simple
+足够:
+
+[[hash_file]]
+.Hashing a file (sync.py)
+====
+[source,python]
+----
+BLOCKSIZE = 65536
+
+
+def hash_file(path):
+    hasher = hashlib.sha1()
+    with path.open("rb") as file:
+        buf = file.read(BLOCKSIZE)
+        while buf:
+            hasher.update(buf)
+            buf = file.read(BLOCKSIZE)
+    return hasher.hexdigest()
+----
+====
+
+现在我们需要写信,就做什么作出决定。
+逻辑,如果你愿意的话。
+
+当我们必须从最初的原则中解决一个问题时,我们通常试图写信
+a 简单执行,然后重新确定设计。 使用
+这本书的整个方法,因为我们如何在现实中写出守则
+世界:首先解决问题最小的部分,然后再解决。
+使解决办法更加丰富和设计得更好。
+
+////
+[SG] this may just be my lack of Python experience but it would have helped me to see
+在本代码前从路障进口帕斯gu,以便我能够gu
+haspath object in hash file(path) - I guess a type hint would
+太大了。
+////
+
+我们的第一种 ha恶做法就是这样:
+
+[[sync_first_cut]]
+.基本综合算法(复印件)
+====
+[source,python]
+[role="non-head"]
+----
+import hashlib
+import os
+import shutil
+from pathlib import Path
+
+
+def sync(source, dest):
+    # Walk the source folder and build a dict of filenames and their hashes
+    source_hashes = {}
+    for folder, _, files in os.walk(source):
+        for fn in files:
+            source_hashes[hash_file(Path(folder) / fn)] = fn
+
+    seen = set()  # Keep track of the files we've found in the target
+
+    # Walk the target folder and get the filenames and hashes
+    for folder, _, files in os.walk(dest):
+        for fn in files:
+            dest_path = Path(folder) / fn
+            dest_hash = hash_file(dest_path)
+            seen.add(dest_hash)
+
+            # if there's a file in target that's not in source, delete it
+            if dest_hash not in source_hashes:
+                dest_path.remove()
+
+            # if there's a file in target that has a different path in source,
+            # move it to the correct path
+            elif dest_hash in source_hashes and fn != source_hashes[dest_hash]:
+                shutil.move(dest_path, Path(folder) / source_hashes[dest_hash])
+
+    # for every file that appears in source but not target, copy the file to
+    # the target
+    for source_hash, fn in source_hashes.items():
+        if source_hash not in seen:
+            shutil.copy(Path(source) / fn, Path(dest) / fn)
+----
+====
+
+Fantastic! We have some code and it  looks  OK, but before we run it on our
+也许我们应该试用这种动力。 我们如何检验这类东西?
+
+
+[[ugly_sync_tests]]
+.某些端对端测试(测试合成孔))
+====
+[source,python]
+[role="non-head"]
+----
+def test_when_a_file_exists_in_the_source_but_not_the_destination():
+    try:
+        source = tempfile.mkdtemp()
+        dest = tempfile.mkdtemp()
+
+        content = "I am a very useful file"
+        (Path(source) / "my-file").write_text(content)
+
+        sync(source, dest)
+
+        expected_path = Path(dest) / "my-file"
+        assert expected_path.exists()
+        assert expected_path.read_text() == content
+
+    finally:
+        shutil.rmtree(source)
+        shutil.rmtree(dest)
+
+
+def test_when_a_file_has_been_renamed_in_the_source():
+    try:
+        source = tempfile.mkdtemp()
+        dest = tempfile.mkdtemp()
+
+        content = "I am a file that was renamed"
+        source_path = Path(source) / "source-filename"
+        old_dest_path = Path(dest) / "dest-filename"
+        expected_dest_path = Path(dest) / "source-filename"
+        source_path.write_text(content)
+        old_dest_path.write_text(content)
+
+        sync(source, dest)
+
+        assert old_dest_path.exists() is False
+        assert expected_dest_path.read_text() == content
+
+    finally:
+        shutil.rmtree(source)
+        shutil.rmtree(dest)
+----
+====
+
+((cocoupling", dodomain logic coupled with I/OO))
+((II/O,, dodomain logic tightly coupled to to))
+Wowsers, that thats a lot of setup for two simple cases! 问题是:
+We domain logic, "figure out the difference between two directories," is tightly
+加上I/O编码。 We can callingt run our difference algorithm without calling
+the `pathlib`, `shutil`, and `hashlib` modules.
+
+麻,,即使符合我们目前的要求,我们也没有写
+充分的试验:目前的执行有几ug(即:
+例如,`shutil.move()`是错误的。 Getting decent coverage and revealing
+These bugs means writing more tests, but if theyugre all as unwieldy as the preceding
+那将很快得到真正的痛苦。
+
+除此之外,我们的代码非常广泛。 Imagine trying to implement
+a `--dry-run`国旗,得到我们的代码,只是印刷它要做什么
+do, rather than actually do it. 或者,如果我们想要yn到遥远的服务器,
+或clo存?
+
+((bstractions", "abstracting state to aid testability", startref="ix absstatestate)))
+((testtesting", ababstracting state to aid testability", startref="ix tstabstab))
+((statestatestate, ababstracting to aid testability", startref="ix stateabs")))
+((ilefilesystems", wwriting code to synchronize source and target directories", startref="ix filesync")))
+((testpytest", ixfixtures"))
+我们的高水平代码加上低水平的细节,使生活艰难。
+随着我们所考虑的情景变得更为复杂,我们的测试将变得更加不易。
+我们可以肯定地重新证明这些试验(有些清理可以进行间test试验)
+例如,固定装置,但只要我们做案卷系统操作,就算
+学习缓慢,难以读写。
+
+[role="pagebreak-before less_space"]
+=== 选择权利限制
+
+((bstractions", chochoosing right abstraction", id="ix abscho"))
+((ilefilesystems", wwriting code to synchronize source and target directories", chochoosing right abstraction", id="ix filesyncabs")))
+我们可以做些什么来重新制定我们的守则,使其更具有检验性?
+
+((代码责任))
+首先,我们需要从档案系统考虑我们的守则需要。
+通过守则,我们可以看到三个不同的事情正在发生。
+We can think of these as three distinct  responsibilities  that the code has:
+
+1. We interrogate the filesystem by using `os.walk` and determine hashes for a
+   一系列途径。 这在来源和来源两方面都是相似的。
+   destination cases.
+
+2. We decide whether a file is new, renamed, or redundant.
+
+3. We copy, move, or remove files to match the source.
+
+
+((简化摘要))
+忆及我们想为其中每一部分找到简化的摘要 
+职责。 这将让我们隐 the这些细节,以便我们能够做到
+Focus on the interesting logic.footnote:[If you're used to thinking in terms of
+界面,即我们试图在这里界定的内容。 ]
+
+注:在本章中,我们将某些编码重新成一个更可检验的代码
+    确定需要完成的单独任务和给予
+    Each task to a clearly defined actor, along similar lines to <<dg example, the `duckduckgo`
+    example..
+
+((didictionaries", "for filesystem operations"))
+((hahashing a file", "dictionary of hashes to paths")))
+For steps 1 and 2, we weve already intuitively started using an abstraction, a
+dictionary of hashes to paths. You may already have been thinking, "Why not
+为目的地fold和来源建造一台词典;
+然后,我们只比较两个数字? 这似乎是抽象抽象的 n。
+档案系统的现状:
+
+    source files = {'hash1': papath1', 'hash2': papath2'}
+    dest files = {'hash1': papath1', 'hash2': papathX'}
+
+What about moving from step 2 to step 3? 我们如何抽象
+实际移动/复印/发射档案系统互动?
+
+((cocoupling", "separating what you want to do from how to do it"))
+We Well apply a trick here that we well employ on a grand scale later in
+the book. We.re going to separate  what  we want to do from  how  to do it.
+We goingre going to make our program output a list of commands that look like this:
+
+    (COPCOPYCOP, sourcesourcepath", "destpath"),
+    (MOMOVEMO, oldold,, newnew"),
+
+((commcommandscomm,proprogram output as list of commands")))
+现在,我们可以写出仅使用两个档案系统专栏作为投入的测试,我们将这样做。
+预期作为产出的行动str状清单。
+
+不用说,在我履行职能时,利用这一实际档案系统,
+check  check 컒쏇쮵, check퓚튻룶낸볾쾵춳뗄헢튻럖stra훐,
+What  abstraction  of filesystem actions will happen?"
+
+
+[[better_tests]]
+.测试中的简化投入和产出(模拟)
+====
+[source,python]
+[role="skip"]
+----
+    def test_when_a_file_exists_in_the_source_but_not_the_destination():
+        source_hashes = {'hash1': 'fn1'}
+        dest_hashes = {}
+        expected_actions = [('COPY', '/src/fn1', '/dst/fn1')]
+        ...
+
+    def test_when_a_file_has_been_renamed_in_the_source():
+        source_hashes = {'hash1': 'fn1'}
+        dest_hashes = {'hash1': 'fn2'}
+        expected_actions == [('MOVE', '/dst/fn2', '/dst/fn1')]
+        ...
+----
+====
+
+
+=== Implementing Our Chosen Abstractions
+
+((bstractions", impimplementing chosen abstraction", id="ix absimplpl)))
+((bstractions", chochoosing right abstraction", startref="ix abscho"))
+((ilefilesystems", wwriting code to synchronize source and target directories", chochoosing right abstraction", startref="ix filesyncabs")))
+((ilefilesystems", wwriting code to synchronize source and target directories", impimplementing chosen abstraction", id="ix filesyncimpimp)))
+这都很好,但我们如何实际写这些新东西
+测试,以及我们如何改变执行,使它能够发挥作用?
+
+((FFunctional Core, Imperative Shell (FCIS)CIS)))
+((BBernhardt, Gary G))
+((testtestingtest, afafter implementing chosen abstraction", id="ix tstaftabstab)))
+我们的目标是孤立我们体系中的悬,部分,并能够检验它。
+彻底不需要建立真正的档案系统。 We'll create a corecore"
+of code that has no dependencies on external state and then see how it responds
+当我们从外部世界提供投入时(这种方法的特点是
+Gary Bernhardt as
+https://oreil.ly/wnad4[Functional
+Core, Imperative Shell], or FCIS.
+
+((I/O,, disdisentangling details from program logic")))
+((statestatestate,spsplitting off from logic in the program")))
+(( &quot; 商业逻辑 &quot; ,与代码中的国家分离))
+Let Lets start off by splitting the code to separate the stateful parts from
+the logic.
+
+我们的上级职能将根本没有逻辑;它只是一个逻辑。
+必要的一系列步骤:收集投入,打开我们的逻辑,应用产出:
+
+[[three_parts]]
+.Split our code into three (sync.py)
+====
+[source,python]
+----
+def sync(source, dest):
+    # imperative shell step 1, gather inputs
+    source_hashes = read_paths_and_hashes(source)  #<1>
+    dest_hashes = read_paths_and_hashes(dest)  #<1>
+
+    # step 2: call functional core
+    actions = determine_actions(source_hashes, dest_hashes, source, dest)  #<2>
+
+    # imperative shell step 3, apply outputs
+    for action, *paths in actions:
+        if action == "COPY":
+            shutil.copyfile(*paths)
+        if action == "MOVE":
+            shutil.move(*paths)
+        if action == "DELETE":
+            os.remove(paths[0])
+----
+====
+P1 Here Here's the first function we factor out, `read_paths_and_hashes()`, which
+    孤立我们申请的I/O部分。
+
+<2. 在这里,我们走出了功能核心,即商业逻辑。
+
+
+((ctiondictionaries", "dictionary of hashes to paths")))
+The code to build up the dictionary of paths and hashes is now trivially easy
+to write:
+
+[[read_paths_and_hashes]]
+.一、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、三、二、二、二、二、二、三、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、三、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、二、
+====
+[source,python]
+----
+def read_paths_and_hashes(root):
+    hashes = {}
+    for folder, _, files in os.walk(root):
+        for fn in files:
+            hashes[hash_file(Path(folder) / fn)] = fn
+    return hashes
+----
+====
+
+The `determine_actions()` function will be the core of our business logic,
+这就是说,我们应该利用这两套 has和文档名称。
+副本/电影/餐饮? It takes simple data structures and returns simple data
+结构:
+
+[[determine_actions]]
+.A function that just does business logic (sync.py)
+====
+[source,python]
+----
+def determine_actions(source_hashes, dest_hashes, source_folder, dest_folder):
+    for sha, filename in source_hashes.items():
+        if sha not in dest_hashes:
+            sourcepath = Path(source_folder) / filename
+            destpath = Path(dest_folder) / filename
+            yield "COPY", sourcepath, destpath
+
+        elif dest_hashes[sha] != filename:
+            olddestpath = Path(dest_folder) / dest_hashes[sha]
+            newdestpath = Path(dest_folder) / filename
+            yield "MOVE", olddestpath, newdestpath
+
+    for sha, filename in dest_hashes.items():
+        if sha not in source_hashes:
+            yield "DELETE", dest_folder / filename
+----
+====
+
+我们的测试现在直接针对`determine_actions()`功能:
+
+
+[[harry_tests]]
+.Ni性测试
+====
+[source,python]
+----
+def test_when_a_file_exists_in_the_source_but_not_the_destination():
+    source_hashes = {"hash1": "fn1"}
+    dest_hashes = {}
+    actions = determine_actions(source_hashes, dest_hashes, Path("/src"), Path("/dst"))
+    assert list(actions) == [("COPY", Path("/src/fn1"), Path("/dst/fn1"))]
+
+
+def test_when_a_file_has_been_renamed_in_the_source():
+    source_hashes = {"hash1": "fn1"}
+    dest_hashes = {"hash1": "fn2"}
+    actions = determine_actions(source_hashes, dest_hashes, Path("/src"), Path("/dst"))
+    assert list(actions) == [("MOVE", Path("/dst/fn2"), Path("/dst/fn1"))]
+----
+====
+
+
+Because we weve disentangled the logic of our program-the code for identifying
+从I/O的低级细节来看,我们很容易检验我们守则的核心。
+
+((ededge-to-edge testing", id="ix edgetstst)))
+通过这种方法,我们从测试我们的主要切入点功能转向了,
+`sync()`, to testing a lower-level function, `determine_actions()`. You might
+决定罚款,因为`sync()`现在非常简单。 或您可决定
+保持一些融合/接受测试,以测试`sync()`。 But there theres
+另一种选择是修改`sync()`功能,以便它能够
+测试单位:对端到端的测试;
+edge-to-edge testing .
+
+
+==== 用 &quot;  Fa &quot; 和 &quot; 依附注射 &quot; 测试dge
+
+((penddependencies", ededge-to-edge testing with dependency injection", id="ix depinj")))
+((testtesting", afafter implementing chosen abstraction", ededge-to-edge testing with fakes and dependency injection", id="ix tstaftabsedgedge)))
+((bstractions", impimplementing chosen abstraction", ededge-to-edge testing with fakes and dependency injection", id="ix absimpltstfdidi))))
+当我们开始起草新的制度时,我们往往首先注重核心逻辑,
+直接进行单位测试。 然而,在某个时候,我们想检验更大的情况。
+系统ch。
+
+((fafaking", fafaking I/O in edge-to-edge test")))
+We  could  return to our end-to-end tests, but those are still as tricky to
+以前写作和维持。 相反,我们往往写出援引整个标准的试验
+系统合在一起,但粉碎了I/O,即:
+
+
+[[di_version]]
+.Explicit dependencies (sync.py)
+====
+[source,python]
+[role="skip"]
+----
+def sync(source, dest, filesystem=FileSystem()):  #<1>
+    source_hashes = filesystem.read(source)  #<2>
+    dest_hashes = filesystem.read(dest)  #<2>
+
+    for sha, filename in source_hashes.items():
+        if sha not in dest_hashes:
+            sourcepath = Path(source) / filename
+            destpath = Path(dest) / filename
+            filesystem.copy(sourcepath, destpath)  #<3>
+
+        elif dest_hashes[sha] != filename:
+            olddestpath = Path(dest) / dest_hashes[sha]
+            newdestpath = Path(dest) / filename
+            filesystem.move(olddestpath, newdestpath)  #<3>
+
+    for sha, filename in dest_hashes.items():
+        if sha not in source_hashes:
+            filesystem.delete(dest / filename)  #<3>
+----
+====
+
+P1 Our 我们的顶级职能现在暴露了新的依赖性,即`FileSystem`。
+
+ict2. We invoke `filesystem.read()` to produce our files dict.
+
+<3> We invoke the ++FileSystem++'s `.copy()`, `.move()` and `.delete()` methods
+    to apply the changes we detect.
+
+TIP: Although we're using dependency injection, there is no need
+    to define an abstract base class or any kind of explicit interface. In this
+    我们经常展示ABC,因为我们希望它们帮助你了解什么是什么。
+    抽象是,但并不必要。 动态性质是指
+    我们永远可以依赖 typ板打字。
+
+// IDEA [KP] Again, one could mention PEP544 protocols here. For some reason, I like them.
+
+我们FileSystem抽象的实际(违约)执行确实是一/二:
+
+[[real_filesystem_wrapper]]
+.实际受扶养人(复印件)
+====
+[source,python]
+[role="skip"]
+----
+class FileSystem:
+
+    def read(self, path):
+        return read_paths_and_hashes(path)
+
+    def copy(self, source, dest):
+        shutil.copyfile(source, dest)
+
+    def move(self, source, dest):
+        shutil.move(source, dest)
+
+    def delete(self, dest):
+        os.remove(dest)
+----
+====
+
+But the fake one is a wrapper around our chosen abstractions,
+而不是实际操作I/O:
+
+[[fake_filesystem]]
+.使用DI的试验
+====
+[source,python]
+[role="skip"]
+----
+class FakeFilesystem:
+    def __init__(self, path_hashes):  #<1>
+        self.path_hashes = path_hashes
+        self.actions = []  #<2>
+
+    def read(self, path):
+        return self.path_hashes[path]  #<1>
+
+    def copy(self, source, dest):
+        self.actions.append(('COPY', source, dest))  #<2>
+
+    def move(self, source, dest):
+        self.actions.append(('MOVE', source, dest))  #<2>
+
+    def delete(self, dest):
+        self.actions.append(('DELETE', dest))  #<2>
+----
+====
+
+fa1> 我们利用我们所选择的抽象来开始我们的法 files文。
+    represent filesystem state: dictionaries of hashes to paths.
+
+<2 The我们`FakeFileSystem`中的行动方法仅附在清单上的记录
+    of `.actions` so we can inspect it later. 这意味着我们两次的考验
+    a fafake.和pyspypy。
+    ((testtest doubles")
+    ((fafake objects"))
+    (( objectsspy objects"))
+
+因此,我们现在的试验可以就真正的、最高级别的`sync()`入境点采取行动,
+但他们使用`FakeFilesystem()`。 In terms of their
+其结局和断言与它们相当相似
+We wrote when testing directly against the functional core `determine_actions()`
+职能:
+
+
+[[bob_tests]]
+.使用DI的试验
+====
+[source,python]
+[role="skip"]
+----
+def test_when_a_file_exists_in_the_source_but_not_the_destination():
+    fakefs = FakeFilesystem({
+        '/src': {"hash1": "fn1"},
+        '/dst': {},
+    })
+    sync('/src', '/dst', filesystem=fakefs)
+    assert fakefs.actions == [("COPY", Path("/src/fn1"), Path("/dst/fn1"))]
+
+
+def test_when_a_file_has_been_renamed_in_the_source():
+    fakefs = FakeFilesystem({
+        '/src': {"hash1": "fn1"},
+        '/dst': {"hash1": "fn2"},
+    })
+    sync('/src', '/dst', filesystem=fakefs)
+    assert fakefs.actions == [("MOVE", Path("/dst/fn2"), Path("/dst/fn1"))]
+----
+====
+
+
+这种办法的优点是,我们的试验就确切的相同功能采取行动
+productions used by our production code. 不利之处是,我们必须做到
+我们的国有组成部分是明示的,并穿过它们。
+David Heinemeier Hansson, the creator of Ruby on Rails, famously described this
+as testtest-induced design damage."
+
+((ededge-to-edge testing", startref="ix edgetstst)))
+((testtesting", afafter implementing chosen abstraction", ededge-to-edge testing with fakes and dependency injection", startref="ix tstaftabsedgedge)))
+((penddependencies", ededge-to-edge testing with dependency injection", startref="ix depinj")))
+((bstractions", afafter implementing chosen abstraction", ededge-to-edge testing with fakes and dependency injection", startref="ix absimpltstfdidi)))
+在这两种情况下,我们现在可以努力确定我们执行工作中的所有 b;
+现在,对所有ed案件进行点名测试更为容易。
+
+
+==== Why Not Just Patch It Out?
+
+((ockmock.patch method"))
+((ockmocking", voavoiding use of mock.patch")))
+((bstractions", impimplementing chosen abstraction", "not using mock.patch for testing"))
+((testtesting", afafter implementing chosen abstraction", "avoiding use of mock.patch", id="ix tstaftabsmck")))
+此时此刻,你可以cr弄你的头脑和思维,
+你为什么只使用`mock.patch`,并挽救你的努力?
+
+我们避免在这本书和我们的生产守则中使用模拟。 不
+进入圣战,但我们的禁,是这种模拟框架,
+尤其是诱.,是一种代码。
+
+相反,我们要明确确定我们的代码中的责任,并
+将这些责任分为轻松的小目标
+以两次试验取代。
+
+NOTE: You can see an example in <<chapter_08_events_and_message_bus>>,
+    当我们`mock.patch()`没有电子邮件发送模块时,但最终我们
+    以明确的受扶养人注射方式取代
+    <<chapter_13_dependency_injection>>.
+
+我们有三个密切相关的倾向:
+
+* 利用你的依赖性,可以对受扶养人进行联合测试
+  编码,但改进设计毫无意义。 Using `mock.patch` wonont let your
+  带有`--dry-run`旗,的代码工作,也无助于你对抗FTP
+  服务器。 为此,你需要介绍摘要。
+
+* 使用 tend  mo的试验与执行细节相配合
+  代码。 因为模拟试验核实了相互作用
+  事 件:我们是否用正确的论据叫`shutil.copy`? This coupling between
+  在我们的经验中,编码和试验ten,使试验更加rit。
+  ((cocoupling","in tests that use mocks")))
+
+* Overuse of mocks leads to complicated test suites that fail to explain the
+  code.
+
+NOTE: Designing for testability really means designing for
+    Extensibility. We trade off a little more complexity for a cleaner design
+    that admits novel use cases.
+
+[role="nobreakinside less_space"]
+.Mocks Versus Fakes; Classic-Style Versus London-School TDD
+*******************************************************************************
+
+((testtest doubles", mmocks versus fakes"))
+((ockmocking", mmocks versus fakes"))
+((fafaking","fakes versus mocks"))
+此处对区别的简短和略为简单的定义
+mo和 fa:
+
+* Mocks are used to verify  how  something gets used; they have methods
+  like `assert_called_once_with()`. 与伦敦学校有关联的儿童
+  TDD.
+
+* Fakes are working implementations of the thing they're replacing, but
+  They.re designed for use only in tests. They wouldn workt work "in real life;;
+我们的记忆库是一个很好的例子。 But you can use them to make assertions about
+  the end state of a system rather than the behaviors along the way, so
+  They.re associated with classic-style TDD.
+
+((FFowler, Martin"))
+((tustubing, mocks and stubs"))
+(( &quot; Mocks Aren#x27;t Stubs &quot; (Fowler)F, primary-sortas=MMocksock)))
+We Were slightly conflating mocks with spies and fakes with stubs here, and you
+可阅读Martin Fowler's中有关该主题的长期、正确的答复
+https://oreil.ly/yYjBN["Mocks Aren't Stubs"].
+
+((MaMagicMock objects"))
+((无试验性能))
+((testtest doubles", mmocks versus stubstu))
+It also probably doesn't help that the `MagicMock` objects provided by the
+`unittest.mock` arenckt, strictly speaking, mocks; they're spies, if anything.
+But they theyre also often used as stubs or dummies. 在那儿,我们许诺与我们一道做的事
+The test double terminology nitpicks now.
+
+//IDEA (hynek) you could mention Alex Gaynor's `pretend` which gives you
+// stubs without mocks error-prone magic.
+
+((伦敦学校与传统的TDD TD))
+((testtest-driven development (TDD)TD, classclassic versus London-schoolschool))))
+((Software Engineering Stack Exchange site"))
+What about London-school versus classic-style TDD? You can read more about those
+我们刚才引述的马丁·福勒斯两条以及
+https://oreil.ly/H2im_[Software Engineering Stack Exchange site],
+但是,在这本书中,古典教营内 firmly立。 我们愿
+Building our tests around state both in setup and in assertions, and we like
+to work at the highest level of abstraction possible rather than doing
+checks on the behavior of intermediary collaborators.footnote:
+说,我们认为伦敦学校的人们是错误的。 Some insanely smart
+人们这样做。 它不仅仅是我们使用的东西。 ]
+
+Read more on this in <<kinds_of_tests>>.
+*******************************************************************************
+
+We view TDD as a design practice first and a testing practice second. 测试
+成为我们设计选择的记录,并有助于向我们解释这一制度
+当我们长期缺勤后回到守则。
+
+((ockmocking", overovermocked tests, pitfalls of")))
+使用太多模拟器的试验与隐 the装置代码重叠
+我们关心的故事。
+
+((( &quot; 试验性发展:这二#二;二27二27二27二27二27二;二 Development二 Development二 Development)))
+((FreeFreeman, Steve Ste))
+((PPyCon talk on Mocking Pitfalls"))
+((JJung, EdJ))
+Steve Freeman has a great example of overmocked tests in his talk
+https://youtu.be/yuEbZYKgZas?si=ZpBoivlDH13XTG9p&t=294["Test-Driven Development: That Thats Not What We Meant.].
+You should also check out this PyCon talk, https://oreil.ly/s3e05["Mocking and Patching Pitfalls"],
+by our estable tech reviewer, Ed Jung, which also addresses mocking and its
+替代品。
+
+And while werandre recommending talks, check out the wonderful Brandon Rhodes
+in https://oreil.ly/oiXJM["Hoisting Your I/O.]. It Its not actually about mocks,
+而是关于将业务逻辑与投资协议脱钩的一般性问题,
+In which he uses a wonderfully simple illustrative example.
+((I/Oho))
+((RRhodes, Brandon"))
+
+
+TIP:在本章中,我们花了很多时间,用最终到端的试验取代最终的试验
+    单位测试。 这就是说,我们认为你永远不应使用E2E测试!
+    In this book we were showing techniques to get you to a decent test
+    金字塔,尽可能多进行单位测试,最低E2E
+    检验你需要有信心。 Read on to <<types_of_test_rules_of_thumb>>
+    for more details.
+    ((itunit testing","unit tests replacing end-to-end tests")))
+    (( unit端到端测试 tests, unit改单位测试place))
+
+
+.So Which Do We Use In This Book? 职能或目标驱动的构成?
+******************************************************************************
+((面向目标的构成))
+Both. 我们的领域模式完全没有依赖性和副作用,
+因此,我们的职能核心。 我们围绕它建立的服务层
+(in <<chapter_04_service_layer>>) allows us to drive the system edge to edge,
+我们使用受扶养人注射方式向这些服务提供国有服务
+因此,我们仍然能够对它们进行统一测试。
+
+见<<chapter_13_dependency_injection>>,以进行更多的探索,使我们得以实现
+扶养注射更明确,更集中。
+******************************************************************************
+
+=== Wrap-Up
+
+((bstractions", impimplementing chosen abstraction", startref="ix absimplpl)))
+((bstractions", simsimplifying interface between business logic and I/OO))
+((企业逻辑 logic,straabstractions simplifying interface with mesy I/OO)))
+((testtestingtest,"after implementing chosen abstraction", startref="ix tstaftabstab)))
+((testtesting", afafter implementing chosen abstraction", "avoiding use of mock.patch", startref="ix tstaftabsmck")))
+((ilefilesystems", wwriting code to synchronize source and target directories", impimplementing chosen abstraction", startref="ix filesyncimpimp)))
+((II/O,, abstractsimplifying interface with business logic using abstractions")))
+如果我们看到这个想法再次出现在这本书中:我们能够使我们成为现实。
+通过简化我们之间的接口,更容易测试和维持系统
+I/O. 正确抽象是 tr的,但这里是 tr的。
+A few heuristics and questions to ask yourself:
+
+
+* 我可以选择一个熟悉的平原数据结构,代表现状
+  messy system and then try to imagine a single function that can return that
+  state?
+
+* Separate the  what  from the  how :
+  我可以使用数据结构或DSL来代表我希望发生的外部影响,
+  I plan to make them happen independently of  how  I plan to make them happen?
+
+* 在什么地方,我可以把我的各种系统联系起来,
+  I carve out a https://oreil.ly/zNUGG[seam]
+  to stick that abstraction in?
+  ((seseamsam))
+
+* 什么是把事情分为不同责任的构成部分的明智方式?
+  什么隐含的概念可以明确?
+
+* What are the dependencies, and what is the core business logic?
+
+((bstractionsction, startref="ix abs"))
+实践使人更加难以理解! 现在又回到我们的经常方案。

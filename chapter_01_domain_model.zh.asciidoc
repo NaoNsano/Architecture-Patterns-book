@@ -1,0 +1,1044 @@
+[[chapter_01_domain_model]]
+== 领域建模
+
+((dodomain modeling", id="ix dommodmod))
+((dodomain driven design (DDD)", seealso=dodomain model; domain modeling")))
+本章探讨我们如何能够以一种方式将业务流程与代码相结合。
+that TDs highly compatible with TDD. We Well discuss  why  domain modeling
+问题,并仔细研究示范领域的一些关键模式:实体、
+价值目标及主要服务。
+
+<<maps_chapter_01_notext>> is a simple visual placeholder for our Domain
+模式。 填补本章中的一些细节,并在我们着手采取行动时
+其它章节,我们就围绕着领域模式建言,但你应该这样做。
+总是能够找到这些微薄的形态。
+
+[[maps_chapter_01_notext]]
+.A placeholder illustration of our domain model
+image::images/apwp_0101.png[]
+
+[role="pagebreak-before less_space"]
+=== 什么是领域模型（Domain Model）？
+
+((企业逻辑层))
+In the <<introduction, introduction>>, we used the term  business logic layer 
+to describe the central layer of a three-layered architecture. 其余
+这本书将使用 domain模型。 任期
+from the DDD community that does a better job of capturing our intended meaning
+(在DDD方面见下一侧更多)。
+
+((dodomain driven design (DDD)", dodomain, defined")))
+domain  is a fancy way of saying  the problem you're trying to solve. 
+Your authors currently work for an online retailer of furniture. 取决于
+What system you,re talking about, the domain might be purchasing and
+采购、产品设计、后勤和交付。 Most programmers
+用日来设法改进或使业务流程自动化;
+这些进程支持的一系列活动。
+
+(((主要)))
+A  model  is a map of a process or phenomenon that captures a useful property.
+人类在自己头上制作物料模型方面非常好。 For
+例如,当有人向你们投 b了一块all子时,你就能够预测。
+几乎不明智地移动,因为你有物体移动方式的模式
+in space. Your model isn perfectt perfect by any means. 人类有可怕
+intuitions about how objects behave at near-light speeds or in a vacuum because
+我们的模式从来不是为了涵盖这些案件。 这意味着模式
+是错误的,但这并不意味着某些预测不属于其范围。
+
+The domain model is the mental map that business owners have of their their
+Business. All business people have these mental map-theythere how humans think
+about complex processes.
+
+当他们利用商业话说这些地图时,你可以说。
+Jargon自然是在复杂系统合作的人中间产生的。
+
+我想,你 -- -- 我们不幸的读者 -- -- 突然被运过轻年。
+离开地球,与你的朋友和家人进行外展空间
+to figure out, from first principles, how to navigate home.
+
+在你的头几天里,你可能只是随机推,但不久你 pushd
+学习哪些 but子做什么,以便你能够相互指示。
+PPress the red button near the flashing doohickey and then throw that big
+lever over by the radar gizmo,. you might say.
+
+在几周内,你在你通过言词时更加精确。
+描述船舶的功能: 货运量增加
+or "turn on the little thrusters." 几个月后,你通过了
+整个复杂进程的语言:StStart着陆顺序 sequence或preprepare
+for warp." 这一进程自然会发生,没有正式的努力
+to build a shared glossary.
+
+[role="nobreakinside less_space"]
+.这不是DDD书。 You should Read a DDD Book.
+*****************************************************************
+
+Domain-driven design, or DDD, popularized the concept of domain modeling,footnote:[
+DDD没有来源于域模型。 Eric Evans refers to the 2002 book  Object Design 
+Rebecca Wirfs-Brock and Alan McKean (Addison-Wesley Professional), which introduced responsibility-driven
+设计,其中DDD是处理这一领域的一个特殊案例。 But even that is
+太晚了,而O的热情将告诉你进一步回头回来
+Jacobson and Grady Booch; the term has been around since the
+1980年代中期(((主要驱动设计(DDD) driven))]
+and it its been a hugely successful movement in transforming the way people
+设计软件,侧重于核心业务领域。 Many of
+我们在本书中涵盖的架构模式 -- -- 包括实体、统合、
+价值目标(见<<chapter_07_aggregate>>)和
+<<chapter_02_repository,the next chapter>>)-come from the DDD tradition.
+
+In a nutshell, DDD says that the most important thing about software is that it
+提供了一个有用的问题模式。 If we get that model right, our
+软件可带来价值,并有可能出现新的问题。
+
+如果我们错过这个模式,它就变成了工作的障碍。 In this book,
+We can show the basics of building a domain model, and building an architecture
+围绕这一模式,尽可能不受外部制约,
+易于演变和改变。
+
+但是,对于DDD和进程、工具和技术来说,情况要多得多
+Developing a domain model. 然而,我们希望给你一个tas子,
+并且不能鼓励你读写适当的DDD书:
+
+* The original "blue book,"  Domain-Driven Design  by Eric Evans (Addison-Wesley Professional)
+* Designred book,"  Implementing Domain-Driven Design 
+  Vaughn Vernon (Addison-Wesley Professional)
+
+*****************************************************************
+
+因此,它是在万隆的商业界。 企业使用的术语
+利益攸关方对域模型的深刻理解。
+复杂的想法和进程被oil为一字或短语。
+
+When we hear our business stakeholders using unfamiliar words, or using terms
+我们应当以具体方式倾听理解更深的含义和co。
+他们对软件的艰苦经验。
+
+我们将在整个书中采用一个真正的世界域模型,特别是
+a 当前就业模式。 MADE.com是一个成功的家具
+零售商。 We source our furniture from manufacturers all over the world and
+sell it across Europe.
+
+When you buy a sofa or a coffee table, we have to figure out how best
+to get your goods from Poland or China or Vietnam and into your living room.
+
+在高级别,我们有单独的系统负责购买
+库存、向客户出售股票和向客户运送货物。 A
+中级系统需要通过分配库存来协调这一进程
+to a customer.s orders; see <<allocation_context_diagram>>.
+
+[[allocation_context_diagram]]
+.分配服务的背景图
+image::images/apwp_0102.png[]
+[role="image-source"]
+----
+[plantuml, apwp_0102]
+@startuml Allocation Context Diagram
+!include images/C4_Context.puml
+scale 2
+
+System(systema, "Allocation", "Allocates stock to customer orders")
+
+Person(customer, "Customer", "Wants to buy furniture")
+Person(buyer, "Buying Team", "Needs to purchase furniture from suppliers")
+
+System(procurement, "Purchasing", "Manages workflow for buying stock from suppliers")
+System(ecom, "Ecommerce", "Sells goods online")
+System(warehouse, "Warehouse", "Manages workflow for shipping goods to customers")
+
+Rel(buyer, procurement, "Uses")
+Rel(procurement, systema, "Notifies about shipments")
+Rel(customer, ecom, "Buys from")
+Rel(ecom, systema, "Asks for stock levels")
+Rel(ecom, systema, "Notifies about orders")
+Rel_R(systema, warehouse, "Sends instructions to")
+Rel_U(warehouse, customer, "Dispatches goods to")
+
+@enduml
+----
+
+为本书的目的,我们想象企业
+决定采用一种令人振奋的新方式分配库存。 Until now, the
+企业一直在根据实际情况提出库存和准备时间
+仓库备有。 如果仓库跑出,则产品是
+在下批货物从制造商运抵之前列为库存的out。
+
+创新:如果我们有一个能够跟踪我们所有货物的系统
+在抵达时,我们可以将这些船上的货物视为船上货物。
+实际库存和我们库存的一部分,只是周转时间稍长。
+货物似乎没有库存,杂货销售量增加,企业
+可以减少国内仓库中的库存,从而节省资金。
+
+But allocating orders is no longer a trivial matter of decrementing a single
+仓库系统的数量。 我们需要一个更加复杂的分配机制。
+Time for some domain modeling.
+
+
+=== 探索主要语言
+
+((主要语言))
+((dodomain modeling", dodomain language")))
+了解这一领域模式需要时间和耐心,并需要事后说明。 我们
+与我们的商业专家进行了初步对话,并商定了一个术语表
+and some rules for the first minimal version of the domain model. Wherever
+我们要求有具体的例子来说明每一项规则。
+
+我们保证在企业园(Oubiquitous)中表达这些规则
+DDD术语中的语言。 我们为我们的物体选择可or识别符号
+因此,这些例子更容易谈论。
+
+<<allocation_notes,The following sidebar>>显示我们可能在获得一份文件时所作的一些说明。
+就分配问题与我们的域专家对话。
+
+[[allocation_notes]]
+.关于拨款的一些说明
+****
+A  product  is identified by a  SKU , pronounced "skew," which is short for  stock-keeping unit .  Customers  place  orders . An order is identified by an  order reference 
+包括多条轨道,每一条线都有 SKU 和 quantity 。 例如:
+
+- 10支RED-CHAIR
+- 1个单位
+
+The purchasing department orders small  batches  of stock. A  batch  of stock has a unique ID called a  reference , a  SKU , and a  quantity .
+
+We need to  allocate   order lines  to  batches . When we weve allocated an
+按批次顺序,我们将从这一特定批次中向批发库存
+客户交付地址。 When we allocate  x  units of stock to a batch, the   available quantity  is reduced by  x . 例如:
+
+- 我们共有20个小行星,我们为2个小行星分配了一个序列。
+- 这一批次应保留18个最低限额。
+
+如果现有数量少于订单数量,我们可以分配到一个批量。 例如:
+
+- We have a batch of 1 BLUE-CUSHION, and an order line for 2 BLUE-CUSHION.
+- 我们不应把这条线分配给这批货物。
+
+We can.t allocate the same line twice. 例如:
+
+- 我们有10支BLUE-VASE,我们为2支BLUE-VASE分配了一行。
+- 如果我们再次把顺序线分配给同一批次,则该批次仍应如此。
+  现有8份。
+
+营区如果目前是运输的,或者它们可能处于仓库库存中。 我们为仓库库存拨款,而不是装运批量。 我们为装运批量拨款,按其最早的《电子贸易协定》顺序排列。
+****
+
+=== 测试主要模型
+
+((itunit testing", UTof domain models", id=UTix UTDMDM)))
+((dodomain modeling", "unit testing domain models", id="ix dommodUTUT))
+We TDre not going to show you how TDD works in this book, but we want to show you
+我们将如何从这一商业对话中构建一个模式。
+
+[role="nobreakinside less_space"]
+.退休人员的行使
+******************************************************************************
+为什么不能解决你自己的问题? 进行几次单位测试
+看你是否能够以 n、干净的方式体现这些业务规则的实质。
+守则(通常不考虑我们提出的解决办法! )
+
+Youllll find some https://github.com/cosmicpython/code/tree/chapter_01_domain_model_exercise[placeholder unit tests on GitHub], but you could just start from
+不管你喜欢,还是把它们合并/重新写作。
+
+//TODO: add test_cannot_allocate_same_line_twice ?
+//(EJ3): nice to have for completeness, but not necessary
+
+******************************************************************************
+
+在这里,我们第一次试验中可以看一下:
+
+[[first_test]]
+.A first test for allocation (test batches.py)
+====
+[source,python]
+----
+def test_allocating_to_a_batch_reduces_the_available_quantity():
+    batch = Batch("batch-001", "SMALL-TABLE", qty=20, eta=date.today())
+    line = OrderLine("order-ref", "SMALL-TABLE", 2)
+
+    batch.allocate(line)
+
+    assert batch.available_quantity == 18
+----
+====
+
+The name of our unit test describes the behavior that we want to see from the
+系统以及我们使用的类别和变量的名称取自
+生意 We could show this code to our nontechnical coworkers, and
+他们同意,这正确地描述了系统的行为。
+
+[role="pagebreak-before"]
+这里是一个符合我们要求的领域:
+
+[[domain_model_1]]
+.首次切割一个区块模型(模型)
+====
+[source,python]
+[role="non-head"]
+----
+@dataclass(frozen=True)  #<1><2>
+class OrderLine:
+    orderid: str
+    sku: str
+    qty: int
+
+
+class Batch:
+    def __init__(self, ref: str, sku: str, qty: int, eta: Optional[date]):  #<2>
+        self.reference = ref
+        self.sku = sku
+        self.eta = eta
+        self.available_quantity = qty
+
+    def allocate(self, line: OrderLine):  #<3>
+        self.available_quantity -= line.qty
+----
+====
+
+P1 P `OrderLine`是一个可计量的数据级
+    无信标:
+    可能已经使用了名字。 You could also check out Hynek Schlawack's
+    https://pypi.org/project/attrs[attrs].]
+
+We2 We We're not showing imports in most code listings, in an attempt to keep them
+    clean. We Were hoping you can guess
+    that this came via `from dataclasses import dataclass`; likewise,
+    `typing.Optional`和`datetime.date`。 If you want to double-check
+    What, you can see the full working code for each chapter in
+    (例如)
+    https://github.com/cosmicpython/code/tree/chapter_01_domain_model[chapter_01_domain_model]).
+
+Type3 Type Type hints are still a matter of controversy in the Python world. For
+    域模型有时有助于澄清或记录什么
+    预期的论点是,民主选举产生的人经常感谢他们。
+    你可以决定按可读性支付的价格过高。
+    ((原型))
+
+我们在此的执行是三方面的:
+a `Batch` just wraps an integer `available_quantity`,
+and we decrement that value on allocation.
+We Weve written quite a lot of code just to subtract one number from another,
+但是,我们认为,模仿我们的域将支付费用。
+或者也许你认为没有足够的守则?
+What about some sort of check that the SKU in the `OrderLine` matches `Batch.sku`?
+We saved some thoughts on certification for <<appendix_validation>>.]
+
+Let Lets write some new failing tests:
+
+
+[[test_can_allocate]]
+.测试我们可以分配的内容的逻辑(测深ches。
+====
+[source,python]
+----
+def make_batch_and_line(sku, batch_qty, line_qty):
+    return (
+        Batch("batch-001", sku, batch_qty, eta=date.today()),
+        OrderLine("order-123", sku, line_qty),
+    )
+
+def test_can_allocate_if_available_greater_than_required():
+    large_batch, small_line = make_batch_and_line("ELEGANT-LAMP", 20, 2)
+    assert large_batch.can_allocate(small_line)
+
+def test_cannot_allocate_if_available_smaller_than_required():
+    small_batch, large_line = make_batch_and_line("ELEGANT-LAMP", 2, 20)
+    assert small_batch.can_allocate(large_line) is False
+
+def test_can_allocate_if_available_equal_to_required():
+    batch, line = make_batch_and_line("ELEGANT-LAMP", 2, 2)
+    assert batch.can_allocate(line)
+
+def test_cannot_allocate_if_skus_do_not_match():
+    batch = Batch("batch-001", "UNCOMFORTABLE-CHAIR", 100, eta=None)
+    different_sku_line = OrderLine("order-123", "EXPENSIVE-TOASTER", 10)
+    assert batch.can_allocate(different_sku_line) is False
+----
+====
+
+There.s nothing too unexpected here. We Weve refactored our test suite so that we
+dondont keep repeating the same lines of code to create a batch and a line for
+同一SKU;和我们就新方法进行了四次简单试验
+`can_allocate`. 再次注意到我们使用的名字与我们使用的语言相似
+域名专家和我们商定的事例直接写成守则。
+
+We can implement this straightforwardly, too, by writing the `can_allocate`
+`Batch`方法:
+
+
+[[can_allocate]]
+.模型中的一种新方法(模型)
+====
+[source,python]
+----
+    def can_allocate(self, line: OrderLine) -> bool:
+        return self.sku == line.sku and self.available_quantity >= line.qty
+----
+====
+
+迄今为止,我们能够通过仅仅增加和减少资源来管理执行工作
+`Batch.available_quantity`, but as we get into `deallocate()` tests, wellll be
+forced into a more intelligent solution:
+
+[role="pagebreak-before"]
+[[test_deallocate_unallocated]]
+.这一测试需要一个标示模型(测绘图)。
+====
+[source,python]
+----
+def test_can_only_deallocate_allocated_lines():
+    batch, unallocated_line = make_batch_and_line("DECORATIVE-TRINKET", 20, 2)
+    batch.deallocate(unallocated_line)
+    assert batch.available_quantity == 20
+----
+====
+
+在这次测试中,我们声称,从批量中划出一条线没有效果
+除非该批货物以前分配过该线。 For this to work, our `Batch`
+需要了解分配了哪些项目。 Let Lets look at the
+执行:
+
+
+[[domain_model_complete]]
+.域网模式现在跟踪分配情况(模块式)
+====
+[source,python]
+[role="non-head"]
+----
+class Batch:
+    def __init__(self, ref: str, sku: str, qty: int, eta: Optional[date]):
+        self.reference = ref
+        self.sku = sku
+        self.eta = eta
+        self._purchased_quantity = qty
+        self._allocations = set()  # type: Set[OrderLine]
+
+    def allocate(self, line: OrderLine):
+        if self.can_allocate(line):
+            self._allocations.add(line)
+
+    def deallocate(self, line: OrderLine):
+        if line in self._allocations:
+            self._allocations.remove(line)
+
+    @property
+    def allocated_quantity(self) -> int:
+        return sum(line.qty for line in self._allocations)
+
+    @property
+    def available_quantity(self) -> int:
+        return self._purchased_quantity - self.allocated_quantity
+
+    def can_allocate(self, line: OrderLine) -> bool:
+        return self.sku == line.sku and self.available_quantity >= line.qty
+
+----
+====
+
+// TODO: consider a diff here
+// TODO explain why harry refuses to use the inline type hints syntax
+
+<<model_diagram>>显示了UML的模型。
+
+
+[[model_diagram]]
+.Our model in UML
+image::images/apwp_0103.png[]
+[role="image-source"]
+----
+[plantuml, apwp_0103, config=plantuml.cfg]
+@startuml
+scale 4
+
+left to right direction
+hide empty members
+
+class Batch {
+    reference
+    sku
+    eta
+    _purchased_quantity
+    _allocations
+}
+
+class OrderLine {
+    orderid
+    sku
+    qty
+}
+
+Batch::_allocations o-- OrderLine
+----
+
+
+Now we were getting somewhere! A batch now keeps track of a set of allocated
+`OrderLine`物体。 如果我们有足够数量的可用量,我们在分配时就算了。
+这套案文刚刚增加。 我们的`available_quantity`现在是计算的财产:
+purchased quantity minus allocated quantity.
+
+是的,我们可以做得更多。 It Its a little disconcerting that
+`allocate()`和`deallocate()`均能无声地失败,但我们有这样的数据:
+basics.
+
+偶然,使用一套`._allocations`的设备,使我们简单易事。
+To handle the last test, because items in a set are unique:
+
+
+[[last_test]]
+.最后一次包装试验! (试验bat贝)
+====
+[source,python]
+----
+def test_allocation_is_idempotent():
+    batch, line = make_batch_and_line("ANGULAR-DESK", 20, 2)
+    batch.allocate(line)
+    batch.allocate(line)
+    assert batch.available_quantity == 18
+----
+====
+
+At the moment, it its probably a valid criticism to say that the domain model is
+用DDD(甚至是目标导向! )对两者太 tri。 In real life,
+任何商业规则和大宗作物:顾客可以要求
+在具体的未来日期交货,这意味着我们可能不想分配
+它们是最早的。 Some SKUs arenUt in batches, but ordered on
+直接要求供应商,因此它们有不同的逻辑。 取决于
+客户地点,我们只能分配一个仓库和货物的子集
+那些在他们所在区域的人除外。
+If we were out of stock in the home region. And
+so on. 现实世界中的一个真正的企业知道如何更快地解决复杂问题
+我们可以在网页上展示!
+
+但是,将这一简单的域模型作为更具体内容的地主
+复杂,我们将在书的其余部分扩大我们简单的域模式
+并把它推入 &quot; 反倾销指数 &quot; 和数据库及电子表格的真实世界。 Wellll
+see how sticking rigidly to our principles of encapsulation and careful
+分层将帮助我们避免一片泥.。
+
+
+[role="nobreakinside"]
+.More Type Hints
+*******************************************************************************
+
+((原型))
+如果你真的想去那个镇,那就能够走到哪里。
+wrapping primitive types by using `typing.NewType`:
+
+[[too_many_types]]
+.Just taking it way too far, Bob
+====
+[source,python]
+[role="skip"]
+----
+from dataclasses import dataclass
+from typing import NewType
+
+Quantity = NewType("Quantity", int)
+Sku = NewType("Sku", str)
+Reference = NewType("Reference", str)
+...
+
+class Batch:
+    def __init__(self, ref: Reference, sku: Sku, qty: Quantity):
+        self.sku = sku
+        self.reference = ref
+        self._purchased_quantity = qty
+----
+====
+
+
+这将使我们的类型检查者能够确保我们通过`Sku`,
+`Reference` is expected, for example.
+
+你认为这是否是 w人听闻的事。 请注意。 -Harry]
+
+*******************************************************************************
+
+==== 数据分类对价值物体具有很大价值
+
+((value Value objects", "using dataclasses for for)))
+((datadataclasses","use for value objects")))
+((dodomain modeling", "unit testing domain models", datadataclasses for value objects"))
+We Weve used `line` liberally in the previous code listings, but what is a
+line? 在我们的商业语言中, order 有多条线项目。
+Each line has a SKU and a quantity. We can imagine that a simple YAML file
+含有订单信息的情况可能就是这样:
+
+
+[[yaml_order_example]]
+.Order info as YAML
+====
+[source,yaml]
+[role="skip"]
+----
+Order_reference: 12345
+Lines:
+  - sku: RED-CHAIR
+    qty: 25
+  - sku: BLU-CHAIR
+    qty: 25
+  - sku: GRN-CHAIR
+    qty: 25
+----
+====
+
+
+
+Notice that while an order has a  reference  that uniquely identifies it, a
+line  does not. (即使我们增加有关`OrderLine`级的订单,
+它不是独一无二地确定界线本身的东西。 )
+
+((value Value objects", defined defineddefined))
+只要我们有一个拥有数据但无身份的商业概念,我们就会
+通常选择使用 &quot; 虚拟目标 &quot; 模式代表它。 A  value object 
+其掌握的数据独一无二地指明的域物体;
+使他们无法言行:
+
+// [SG] seems a bit odd to hear about value objects before any mention of entities.
+
+[[orderline_value_object]]
+.Order性是价值物体
+====
+[source,python]
+[role="skip"]
+----
+@dataclass(frozen=True)
+class OrderLine:
+    orderid: OrderReference
+    sku: ProductReference
+    qty: Quantity
+----
+====
+
+((namnamedtuples", seealso=datadataclasses")))
+One of the nice things that dataclasses (or namedtuples) give us is  value
+平等 -- -- 这是说的良性方式 -- -- 与同一个`orderid`的T线,
+`sku`和`qty`一律平等。
+
+
+[[more_value_objects]]
+.价值物体的更多实例
+====
+[source,python]
+[role="skip"]
+----
+from dataclasses import dataclass
+from typing import NamedTuple
+from collections import namedtuple
+
+@dataclass(frozen=True)
+class Name:
+    first_name: str
+    surname: str
+
+class Money(NamedTuple):
+    currency: str
+    value: int
+
+Line = namedtuple('Line', ['sku', 'qty'])
+
+def test_equality():
+    assert Money('gbp', 10) == Money('gbp', 10)
+    assert Name('Harry', 'Percival') != Name('Bob', 'Gregory')
+    assert Line('RED-CHAIR', 5) == Line('RED-CHAIR', 5)
+----
+====
+
+((value Value objects", mamath with"))
+这些价值目标与我们真实世界对其价值如何进行校正相匹配
+work. It doesn't matter   which £10 note we were talking about, because they all
+价值相同。 同样,如果第一个和最后一个,两个名字是平等的。
+姓名匹配;如果客户订单相同,两条线相同,
+产品代码和数量。 我们仍然可以对价值采取复杂的行为
+可是。 In fact, it,s common to support operations on values; for
+例如,数学操作者:
+
+
+[[value_object_maths_tests]]
+.具有价值物体的测距
+====
+[source,python]
+[role="skip"]
+----
+fiver = Money('gbp', 5)
+tenner = Money('gbp', 10)
+
+def can_add_money_values_for_the_same_currency():
+    assert fiver + fiver == tenner
+
+def can_subtract_money_values():
+    assert tenner - fiver == fiver
+
+def adding_different_currencies_fails():
+    with pytest.raises(ValueError):
+        Money('usd', 10) + Money('gbp', 10)
+
+def can_multiply_money_by_a_number():
+    assert fiver * 5 == Money('gbp', 25)
+
+def multiplying_two_money_values_is_an_error():
+    with pytest.raises(TypeError):
+        tenner * fiver
+----
+====
+
+
+(((magmagic methods", &еx5f;add #x5f; #x5f;", secondary-sortas="add"))))
+((&(&)x5f;#x5f;ad #x5f;#x5f;magic method", primary-sortas=adadd")))
+To get those tests to actually pass you youll need to start implementing some
+我们`Money`级的磁力方法:
+
+[[value_object_maths]]
+.带有价值物体的 Implementing
+====
+[source,python]
+[role="skip"]
+----
+@dataclass(frozen=True)
+class Money:
+    currency: str
+    value: int
+
+    def __add__(self, other) -> Money:
+        if other.currency != self.currency:
+            raise ValueError(f"Cannot add {self.currency} to {other.currency}")
+        return Money(self.currency, self.value + other.value)
+----
+====
+
+
+
+
+==== 价值物体和实体
+
+((value Value objects", "and entities", secondary-sortas=ententities")))
+((dodomain modeling", "unit testing domain models", valuevalue objects and entities")))
+单行的序列ID, SKU, and quantity; if we
+改变其中一个价值观,我们现在有一个新线。 定义
+价值物体: 其数据和 doest 所确认的任何物体
+long-lived identity. 然而,什么是批量? (a)
+参考。
+
+((ententities", defined defineddefined))
+我们使用 &quot; 实体 &quot; 一词来描述长期存在的一个域物体
+身份。 在前一页,我们将`Name`级作为价值目标。
+如果我们取名哈里·佩西瓦尔,改写一封信,我们就有新的文字。
+`Name`物体
+
+很清楚,哈里·佩切瓦尔与巴里·佩尔西瓦尔不同:
+
+
+[[test_equality]]
+.名称本身不能改变。
+====
+[source,python]
+[role="skip"]
+----
+def test_name_equality():
+    assert Name("Harry", "Percival") != Name("Barry", "Percival")
+----
+====
+
+
+But what about Harry as a  person ? People do change their names, and their
+婚姻状况,甚至其性别,但我们继续承认其为婚姻状况
+同一个人。 这是因为人与人不同,具有持久性
+identity :
+
+
+[[person_identity]]
+.But a person can!
+====
+[source,python]
+[role="skip"]
+----
+class Person:
+
+    def __init__(self, name: Name):
+        self.name = name
+
+
+def test_barry_is_harry():
+    harry = Person(Name("Harry", "Percival"))
+    barry = harry
+
+    barry.name = Name("Barry", "Percival")
+
+    assert harry is barry and barry is harry
+----
+====
+
+
+
+((实体,、身份平等)))
+((身份平等(实体))))
+Entities, unlike values, have  identity equality . We can change their values,
+他们仍然是值得肯定的。 以我们为例,营
+实体。 We can allocate lines to a batch, or change the date that we expect
+It to arrive, and it will still be the same entity.
+
+((平等经营者,执行实体))
+我们通常通过实施平等经营者在守则中明确说明这一点。
+实体:
+
+
+
+[[equality_on_batches]]
+.执行平等经营者(单元间)
+====
+[source,python]
+----
+class Batch:
+    ...
+
+    def __eq__(self, other):
+        if not isinstance(other, Batch):
+            return False
+        return other.reference == self.reference
+
+    def __hash__(self):
+        return hash(self.reference)
+----
+====
+
+((magmagic methods", &еx5f;eq#x5f;#x5f;", secondary-sortas="eqtas)))
+((&(&)+5f;eq#x5f;#x5f;magic method", primary-sortas=eeq")))
+Python's +++<code>__eq__</code>+++磁法
+确定`==`操作者的等级表:
++++<code>__eq__</code>+++法被宣布为低于EQ." 有些人至少要这样。 ]
+
+((magmagic methods", &еx5f;hash#x5f;hash#x5f;#, secondary-sortas="hash")))
+(((&+5f;#x5f;hash#x5f;#x5f;magic method", primary-sortas="hash"))))
+对于实体和价值物体而言,它也值得考虑,方法是如何考虑
++++<code>__hash__</code>+++将工作。 It Its the magic method Python uses to control the
+(a) 在你添加物件以制造或使用这些物件作为独裁 key器时的行为;
+You can find more info https://oreil.ly/YUzg5[in the Python docs].
+
+对于价值物体, has值应基于所有价值属性,
+我们应该确保这些物体不可改变。 We get this for
+通过在数据分类中具体说明`@frozen=True`。
+
+对于实体来说,最简单的选择是说 has是++None++,意思是
+物体不易发生,例如无法在一套装置中使用。
+If for some reason you decide you really do want to use set or dict operations
+(b)  has体应基于属性,例如
+`.reference`, that defines the entity.s unique identity over time. You should
+也试图在某种程度上使 that 的属性可以理解。
+
+WARNING: This is tricky territory; you shouldnINGt modify +++<code>__hash__</code>+++
+    也没有修改+++<code>__eq__</code>+++。 If you're not sure what
+    建议进一步阅读。
+    https://oreil.ly/vxkgX["Python Hashes and Equality Equality] by our tech reviewer
+    Hynek Schlawack是一个良好开端。
+    ((itunit testing", UTof domain models", startref=UTix UTDMDM)))
+    ((dodomain modeling", "unit testing domain models", startref=ixix dommodUTUT))
+
+
+
+=== Not Everything Has to Be an Object: A Domain Service Function
+
+((主要服务))
+((dodomain modeling", "functions for domain services", id="ix dommodfnc"))
+We Weve made a model to represent batches, but what we actually need
+对照一套特定的批次分配订单
+代表我们所有的财富。
+
+[quote, Eric Evans, Domain-Driven Design]
+____
+有时,这只是一件事。
+____
+
+(( &quot; 服务级服务诉域服务 &quot; ))
+Evans discusses the idea of Domain Service
+在实体或价值中拥有天然住宅的作业
+object.footnote:[Domain services are not the same thing as the services from
+the <<chapter_04_service_layer,service layer>>, although they are
+经常密切相关。 A domain service represents a business concept or
+程序,而服务提供者服务是你使用的一个案例。
+适用。 服务层通常需要一个领域服务。 ] A
+鉴于一系列的bat,需要划定一个秩序线的东西就像一个大 lot一样。
+功能,我们可以利用Python是一个多代数字
+语言和公正使其成为一种功能。
+((dodomain services", functionfunction for for))
+
+让我们看看我们如何检验这样一个功能:
+
+
+[[test_allocate]]
+.测试我们的域网服务(测all网ate)
+====
+[source,python]
+----
+def test_prefers_current_stock_batches_to_shipments():
+    in_stock_batch = Batch("in-stock-batch", "RETRO-CLOCK", 100, eta=None)
+    shipment_batch = Batch("shipment-batch", "RETRO-CLOCK", 100, eta=tomorrow)
+    line = OrderLine("oref", "RETRO-CLOCK", 10)
+
+    allocate(line, [in_stock_batch, shipment_batch])
+
+    assert in_stock_batch.available_quantity == 90
+    assert shipment_batch.available_quantity == 100
+
+
+def test_prefers_earlier_batches():
+    earliest = Batch("speedy-batch", "MINIMALIST-SPOON", 100, eta=today)
+    medium = Batch("normal-batch", "MINIMALIST-SPOON", 100, eta=tomorrow)
+    latest = Batch("slow-batch", "MINIMALIST-SPOON", 100, eta=later)
+    line = OrderLine("order1", "MINIMALIST-SPOON", 10)
+
+    allocate(line, [medium, earliest, latest])
+
+    assert earliest.available_quantity == 90
+    assert medium.available_quantity == 100
+    assert latest.available_quantity == 100
+
+
+def test_returns_allocated_batch_ref():
+    in_stock_batch = Batch("in-stock-batch-ref", "HIGHBROW-POSTER", 100, eta=None)
+    shipment_batch = Batch("shipment-batch-ref", "HIGHBROW-POSTER", 100, eta=tomorrow)
+    line = OrderLine("oref", "HIGHBROW-POSTER", 10)
+    allocation = allocate(line, [in_stock_batch, shipment_batch])
+    assert allocation == in_stock_batch.reference
+----
+====
+
+((职能function,域服务for))
+我们的服务也许会看着这一点:
+
+
+[[domain_service]]
+.我们的域服务(模块式)的独立功能
+====
+[source,python]
+[role="non-head"]
+----
+def allocate(line: OrderLine, batches: List[Batch]) -> str:
+    batch = next(b for b in sorted(batches) if b.can_allocate(line))
+    batch.allocate(line)
+    return batch.reference
+----
+====
+
+==== Pythonss Magic Methods Let Us Use Our Models with Idiomatic Python
+
+((&(&)+5f;#+5f;#+5f;#5f;磁方法mag,主角=gt)))
+((magmagic methods", lowallowing use of domain model with idiomatic Pythonon))
+You may or not like the use of `next()` in the preceding code, but we prere pretty
+Ensuring you ofll agree that being able to use `sorted()` on our list of
+batches is nice, idiomatic Python.
+
+为了使它发挥作用,我们就我们的域模式执行+++<code>__gt__</code>+++:
+
+
+
+[[dunder_gt]]
+.Magic methods can express domain semantics (model.py)
+====
+[source,python]
+----
+class Batch:
+    ...
+
+    def __gt__(self, other):
+        if self.eta is None:
+            return False
+        if other.eta is None:
+            return True
+        return self.eta > other.eta
+----
+====
+
+That.s lovely.
+
+
+==== Exceptions Can Express Domain Concepts Too
+
+((主要例外情况))
+((ceptionexceptions", exexpressing domain concepts"))
+我们有一个涵盖的最终概念:可使用例外来表达领域
+概念也一样。 In our conversations with domain experts, we weve learned about the
+可能由于我们没有库存而无法分配命令,
+并且我们可以通过使用 domain exception :
+
+
+[[test_out_of_stock]]
+.试验过期豁免(试验性all酸盐。
+====
+[source,python]
+----
+def test_raises_out_of_stock_exception_if_cannot_allocate():
+    batch = Batch("batch1", "SMALL-FORK", 10, eta=today)
+    allocate(OrderLine("order1", "SMALL-FORK", 10), [batch])
+
+    with pytest.raises(OutOfStock, match="SMALL-FORK"):
+        allocate(OrderLine("order2", "SMALL-FORK", 1), [batch])
+----
+====
+
+
+[role="nobreakinside"]
+.领域模型（Domain Model）ing Recap
+*****************************************************************
+主要模式:
+    这是你最接近业务守则的一部分,
+    the most likely to change, and the place where you deliver the
+    对企业最有价值。 Make it easy to understand and modify.
+    ((dodomain modeling", startref=domix dommodmod))
+
+Distinguish entities from value objects:
+    A value object is defined by its attributes. 通常最好
+    已作为不可改变的类型执行。 If you change an attribute on
+    a 价值标的是一个不同的标的。 相比之下,
+    实体的属性可能随着时间的推移而变化,但仍将是
+    同一实体。 必须确定哪些 does 
+    实体(通常是某种名称或参照领域)。
+    ((实体"、value价值物体对)))
+    ((value值物体"、ententities versus"))
+
+并非所有事情都必须是:
+    Python is a multiparadigm language, so let the "verbs" in your
+    守则是职能。 For every `FooManager`, `BarBuilder`, or `BazFactory`,
+    theres often a more expressive and readable `manage_foo()`, `build_bar()`,
+    or `get_baz()` waiting to happen.
+    ((职能)))
+
+这是适用你最佳业务设计原则的时候:
+    Revisit the SOLID principles and all the other good heuristics like "has a versus is-a,"
+    preprefer composition over inheritance,. and so on.
+    ((面向目标的设计原则))
+
+Youllll also want to think about consistency boundaries and aggregates:
+    But that.s a topic for <<chapter_07_aggregate>>.
+
+*****************************************************************
+
+We won,t bore you too much with the implementation, but the main thing
+to note is that we take care in naming our exceptions in the ubiquitous
+语言与我们的实体、价值目标和服务一样:
+
+
+[[out_of_stock]]
+.产生一个领域例外(模块式)
+====
+[source,python]
+----
+class OutOfStock(Exception):
+    pass
+
+
+def allocate(line: OrderLine, batches: List[Batch]) -> str:
+    try:
+        batch = next(
+        ...
+    except StopIteration:
+        raise OutOfStock(f"Out of stock for sku {line.sku}")
+----
+====
+
+
+<<maps_chapter_01_withtext>> is a visual representation of where we weve ended up.
+
+[[maps_chapter_01_withtext]]
+.我们在本章结尾的域模式
+image::images/apwp_0104.png[]
+
+((dodomain modeling", "functions for domain services", startref="ix dommodfnc"))
+现在很可能要这样做! 我们拥有我们可以利用的域服务。
+First use case. 但首先需要一个数据库。

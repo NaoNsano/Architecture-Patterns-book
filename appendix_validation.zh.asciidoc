@@ -1,0 +1,522 @@
+[[appendix_validation]]
+[appendix]
+== 审定
+
+((valvalidation", id="ix validid)))
+Whenever we,re teaching and talking about these techniques, one question that
+现在已经过去和过去了? 属于
+我在这个领域模式中的商业逻辑,还是这种基础设施关切?
+
+与任何建筑问题一样,答案是:它取决于!
+
+最重要的考虑是,我们要使我们的守则完全分离。
+因此,该系统的每一部分都是简单的。 We dondont want to clutter our code
+with irrelevant detail.
+
+=== What Is Validation, Anyway?
+
+When people use the word  validation , they usually mean a process whereby they
+测试一项行动的投入,以确保其符合某些标准。
+与标准相匹配的投入被视为 valid ,以及投入
+invalid .
+
+如果投入无效,则可继续作业,但应撤出
+某种错误。 换句话说,验证意在创造 preconditions 。 我们认为是有益的。
+to separate our preconditions into three subtypes: syntax, semantics, and
+务实。
+
+=== 测试
+
+In linguistics, the  syntax  of a language is the set of rules that govern the
+structure of grammatical sentences. 例如,英文句
+orderAllocate three units of `TASTELESS-LAMP` to order twenty-seven order is grammatically
+正确,而"hat hat hat hat wibble.的说法并非如此。 We can describe
+克法正确判决为 well .
+
+[role="pagebreak-before"]
+如何应用这一地图? 这里是合成规则的一些例子:
+
+* An `Allocate` command must have an order ID, a SKU, and a quantity.
+* A quantity is a positive integer.
+* A SKU is a string.
+
+这些规则是新数据的形式和结构。 An `Allocate`
+command without a SKU or an order ID isn.t a valid message. 等值
+of the phrase AllAllocate three to."
+
+我们倾向于在制度边缘验证这些规则。 我们的um规则是
+信息手应始终只收到信息,信息充分
+并载有所有必要的信息。
+
+一种选择是把你的验证逻辑放在信息类型本身上:
+
+
+[[validation_on_message]]
+.电文类的验证(热/地点/通信/间))
+====
+[source,python]
+----
+from schema import And, Schema, Use
+
+
+@dataclass
+class Allocate(Command):
+
+    _schema = Schema({  #<1>
+        'orderid': str,
+        'sku': str,
+        'qty': And(Use(int), lambda n: n > 0)
+     }, ignore_extra_keys=True)
+
+    orderid: str
+    sku: str
+    qty: int
+
+    @classmethod
+    def from_json(cls, data):  #<2>
+        data = json.loads(data)
+        return cls(**_schema.validate(data))
+----
+====
+
+
+
+P1 Thehttps://pypi.org/project/schema[++schema++图书馆]让我们
+    以clar性方式描述我们的信息的结构和验证。
+
+JS2 The`from_json`法将之视为联署材料,并将其转化为我们的信息
+    类型。
+
+// IDEA hynek didn't like the inline call to json.loads
+
+然而,这可以重复,因为我们需要两次具体说明我们的领域,
+因此,我们可能希望建立一个能够统一审定和验证的求助图书馆
+宣布我们的信息类型:
+
+
+[[command_factory]]
+.A command factory with schema (src/allocation/commands.py)
+====
+[source,python]
+----
+def command(name, **fields):  #<1>
+    schema = Schema(And(Use(json.loads), fields), ignore_extra_keys=True)
+    cls = make_dataclass(name, fields.keys())  #<2>
+    cls.from_json = lambda s: cls(**schema.validate(s))  #<3>
+    return cls
+
+def greater_than_zero(x):
+    return x > 0
+
+quantity = And(Use(int), greater_than_zero)  #<4>
+
+Allocate = command(  #<5>
+    'Allocate',
+    orderid=int,
+    sku=str,
+    qty=quantity
+)
+
+AddStock = command(
+    'AddStock',
+    sku=str,
+    qty=quantity
+----
+====
+
+message1 The `command`功能为电文名称,外加信标
+    电文有效载荷,其中壳牌是外地名称和
+    价值为包.。
+data2> We use the `make_dataclass` function from the dataclass module to dynamically
+    建立我们的信息类型。
+<3. We patch the `from_json` method onto our dynamic dataclass.
+S4U We can create reusable parsers for quantity, SKU, and so on to keep things DRY.
+message5clar 宣布信息类型变成单线。
+
+这样做是因为牺牲了你们数据分类中的种类,因此,
+折衷。
+
+// (EJ2) I understand this code, but find it to be a little bit gross, since
+// there are many alternatives that combine schema validation, object serialization
+// + deserialization, and class type definitions for you.  Examples here: https://github.com/voidfiles/python-serialization-benchmark
+// Would be nice to see a mention of things like Marshmallow here.
+
+
+
+=== Postel's Law and the Tolerant Reader Pattern
+
+Posteltels law , or the  robustness principle , tells us, "Be liberal in what you
+接受并保守你所从事的工作。 我们认为这尤其适用。
+well in the context of integration with our other systems. 这里的想法
+只要我们向其他系统发出信息,我们就应该严格。
+当我们从其他国家收到信息时,尽可能宽松。
+
+For example, our system  could  validate the format of a SKU. We've一直在使用
+made-up SKUs like `UNFORGIVING-CUSHION` and `MISBEGOTTEN-POUFFE`. 下文
+a 简单模式:两字,用ash机分离,第二字为:
+产品类型和第一词是主观的。
+
+Developers  love  to validate this kind of thing in their messages, and reject
+Any that looks like an invalid SKU. 这造成了可怕的问题。
+(一) 某些建筑师释放一个名为`COMFY-CHAISE-LONGUE`的产品或何时
+a snafu at the supplier results in a shipment of `CHEAP-CARPET-2`.
+
+Really, as the allocation system, it's  none of our business  what the format of
+a SKU可能是这样。 我们需要的是一个识别特征,因此我们可以简单地说它是一种识别手段。
+string. 这意味着只要采购系统能够改变格式
+They like, and we won.t care.
+
+这一原则同样适用于订单号码、客户电话号码和很多
+more. 就多数而言,我们可以忽视内部str生结构。
+
+Similarly, developers  love  to validate incoming messages with tools like JSON
+Schema, or to build libraries that validate incoming messages and share them
+among systems. This likewise fails the robustness test.
+
+// (EJ3) This reads like it's saying that JSON-Schema is bad (which is a separate discussion, I think.)
+//
+// If I understand correctly, the issue is that JSON-Schema allows you to specify
+// syntax, semantics, + pragmatics all in a single definition, and tends to
+// encourage devs to mix them together. Therefore it encourages overly premature validation.
+//
+
+例如,让我们想象,采购系统给采购系统增加了新的领域
+`ChangeBatchQuantity`电文,记录变化的原因和
+负责变更的用户的电子邮件。
+
+由于这些领域向分配服务倾,,我们应该简单地这样做。
+无视他们。 我们可以在`schema`图书馆通过关键词ar
+`ignore_extra_keys=True`.
+
+这种模式使我们只抽取我们所关心的领域,而且很少这样做
+对它们进行验证,是容忍的叛逃模式。
+
+TIP: Validate as little as possible. Read only the fields you need, and dondont
+    overspecify their contents. This will help your system stay robust when other
+    系统随时间变化。 Resist the temptation to share message
+    系统的定义:相反,很容易确定数据
+    取决于。 For more info, see Martin Fowlerlers article on the
+    https://oreil.ly/YL_La[Tolerant Reader pattern].
+
+[role="pagebreak-before less_space"]
+.Is Postel Always Right?
+*******************************************************************************
+Mentioning Postel can be quite triggering to some people. 他们将
+https://oreil.ly/bzLmb[tell you]
+海报是互联网上所有内容都被打破的确切原因
+我们可以有好事。 Ask Hynek about SSLv3 one day.
+
+我们喜欢在基于事件的特定背景下采取宽容的救援办法
+整合我们控制的各项服务,因为它允许独立
+这些服务的演变。
+
+If youPIre in charge of an API thatPIs open to the public on the big bad
+互联网可能有充分理由更保守地说明什么是
+你们可以提供投入。
+*******************************************************************************
+
+=== 在Edge进行验证
+
+// (EJ2) IMO "Smart Edges, Dumb Pipes" is a useful another useful idiom to keep
+// validation straight.
+// "Validation at the Edge" might be mis-interpreted as the "validate
+// everything you can as soon as you can."
+
+早些时候,我们说,我们想避免把我们的守则与不相关的内容混,起来。
+详情。 特别是,我们不想在我们的领域模式中采取防御性守则。
+相反,我们要确保已知的请求在我们面前有效。
+域模型或用户处理器都看见。 This helps our code stay clean
+长期维持。 We sometimes refer to this as  validating
+at the edge of the system .
+
+In addition to keeping your code clean and free of endless checks and asserted,
+铭记通过贵国系统取得的无效数据是一枚时间炸弹;
+越发越深,可能造成的损害越大,工具越少
+你们必须对此作出回应。
+
+回到<<chapter_08_events_and_message_bus>>,我们说,信息巴士是把大巴放到<<chapter_08_events_and_message_bus>>的地方。
+贯穿各领域的关切,验证是这方面的一个很好的例子。 Heress how
+我们可以改变我们的汽车,以便对我们进行验证:
+
+
+[[validation_on_bus]]
+.审定
+====
+[source,python]
+----
+class MessageBus:
+
+    def handle_message(self, name: str, body: str):
+        try:
+            message_type = next(mt for mt in EVENT_HANDLERS if mt.__name__ == name)
+            message = message_type.from_json(body)
+            self.handle([message])
+        except StopIteration:
+            raise KeyError(f"Unknown message name {name}")
+        except ValidationError as e:
+            logging.error(
+                f'invalid message of type {name}\n'
+                f'{body}\n'
+                f'{e}'
+            )
+            raise e
+----
+====
+
+// (EJ3) What's your opinion on how to handle validation in the scenario where
+// the command is being passed to an asynchronous worker pool via RabbitMQ?
+//
+
+在这里,我们如何从我们的 &quot; Flask API &quot; 终点出发使用这一方法:
+
+
+[[validation_bubbles_up]]
+.API bubbles up certification errors (src/allocation/flask app.py)
+====
+[source,python]
+----
+@app.route("/change_quantity", methods=['POST'])
+def change_batch_quantity():
+    try:
+        bus.handle_message('ChangeBatchQuantity', request.body)
+    except ValidationError as e:
+        return bad_request(e)
+    except exceptions.InvalidSku as e:
+        return jsonify({'message': str(e)}), 400
+
+def bad_request(e: ValidationError):
+    return e.code, 400
+----
+====
+
+在这里,我们如何能够把它推向我们这个同步的讯息过程:
+
+[[validation_pubsub]]
+.处理红色电文时的估价错误(热/调配/再造/印刷)
+====
+[source,python]
+----
+def handle_change_batch_quantity(m, bus: messagebus.MessageBus):
+    try:
+        bus.handle_message('ChangeBatchQuantity', m)
+    except ValidationError:
+        print('Skipping invalid message')
+    except exceptions.InvalidSku as e:
+        print(f'Unable to change stock for missing sku {e}')
+----
+====
+
+Notice that our entrypoints are solely concerned with how to get a message from
+the outside world and how to report success or failure. Our message bus takes
+注意核实我们的要求,并将它们转给正确的手人,
+我们的处理者只注重我们使用案件的逻辑。
+
+TIP: When you receive an invalid message, there,s usually little you can do but
+    记录错误并继续。 在 &quot; MADE &quot; 中,我们使用衡量标准来计算数量
+    收到一个系统的信息,其中有多少得到成功
+    加工、熟练或无效。 如果我们有监测工具,我们就会提醒我们,我们
+    见坏信息数量激增。
+
+
+
+=== 鉴定
+
+While syntax is concerned with the structure of messages,  semantics  is the study
+of  meaning  in messages. The sentence UUndo no dogs from ellipsis four is is
+structureAllocate one
+teapot to order five,"" but it is meaningless.
+
+We can read this JSON blob as an `Allocate` command but can cant successfully
+执行死刑,因为它:
+
+
+[[invalid_order]]
+.无意义信息
+====
+[source,python]
+----
+{
+  "orderid": "superman",
+  "sku": "zygote",
+  "qty": -1
+}
+----
+====
+
+We tend to validate semantic concerns at the message-handler layer with a kind
+基于合同的方案拟订:
+
+
+[[ensure_dot_py]]
+.先决条件(rc/allocation/ensure.py)
+====
+[source,python]
+----
+"""
+This module contains preconditions that we apply to our handlers.
+"""
+
+class MessageUnprocessable(Exception):  #<1>
+
+    def __init__(self, message):
+        self.message = message
+
+class ProductNotFound(MessageUnprocessable):  #<2>
+    """"
+    This exception is raised when we try to perform an action on a product
+    that doesn't exist in our database.
+    """"
+
+    def __init__(self, message):
+        super().__init__(message)
+        self.sku = message.sku
+
+def product_exists(event, uow):  #<3>
+    product = uow.products.get(event.sku)
+    if product is None:
+        raise ProductNotFound(event)
+----
+====
+
+<1. 我们用一个共同基数处理错误,即信息无效。
+<2 Using 在这个问题上使用特定的错误类型使报告更容易
+    处理错误。 For example, it its easy to map `ProductNotFound` to a 404
+    in Flask.
+P3 P `product_exists`是一个先决条件。 If the condition is `False`, we raise an
+    错误。
+
+
+这使我们的逻辑在服务层中的主要流动保持清洁和说明:
+
+[[ensure_in_services]]
+.确保服务电话(机/地点/服务.间)
+====
+[source,python,highlight=8]
+----
+# services.py
+
+from allocation import ensure
+
+def allocate(event, uow):
+    line = model.OrderLine(event.orderid, event.sku, event.qty)
+    with uow:
+        ensure.product_exists(event, uow)
+
+        product = uow.products.get(line.sku)
+        product.allocate(line)
+        uow.commit()
+----
+====
+
+
+我们可以扩大这一技术,以确保我们不时地应用信息。
+例如,我们想确保我们更愿意增加一块库存。
+不止一次。
+
+If we get asked to create a batch that already exists, we well log a warning and
+继续以下信息:
+
+[[skipmessage]]
+.无知事件(火车/地点/服务.间)的ise液
+====
+[source,python]
+----
+class SkipMessage (Exception):
+    """"
+    This exception is raised when a message can't be processed, but there's no
+    incorrect behavior. For example, we might receive the same message multiple
+    times, or we might receive a message that is now out of date.
+    """"
+
+    def __init__(self, reason):
+        self.reason = reason
+
+def batch_is_new(self, event, uow):
+    batch = uow.batches.get(event.batchid)
+    if batch is not None:
+        raise SkipMessage(f"Batch with id {event.batchid} already exists")
+----
+====
+
+采用`SkipMessage`的例外情况,让我们以通用方式处理这些案件
+way in our message bus:
+
+[[skip_in_bus]]
+.The bus now knows how to skip (src/allocation/messagebus.py)
+====
+[source,python]
+----
+class MessageBus:
+
+    def handle_message(self, message):
+        try:
+            ...
+        except SkipMessage as e:
+            logging.warn(f"Skipping message {message.id} because {e.reason}")
+----
+====
+
+
+There are a couple of pitfalls to be aware of here. 首先,我们需要肯定
+that we were using the same UoW that we use for the main logic of our
+Use case. 否则,我们就愿意刺激合时宜之计。
+
+第二,我们应努力避免将我们的商业逻辑纳入这些逻辑之中。
+先决条件检查。 作为um规则,如果在我们内部测试规则 can 
+然后在域模型中测试。
+
+=== Validating Pragmatics
+
+Pragmatics  is the study of how we understand language in context. After we have
+只要发出一个信息,gra大其含义,我们仍然需要处理这个问题。
+context. For example, if you get a comment on a pull request saying, "I think
+这可能意味着审查者钦佩你的勇气 -- -- 毫无根据。
+They,re British, in which case, they're trying to tell you that what you,re doing
+危险性极小,只有一个人才库会试图这样做。 背景是一切。
+
+[role="nobreakinside less_space"]
+.验证局
+*****************************************************************
+
+验证是指不同人群的不同情况:
+    When talking about certification, make sure you,re clear about what you,re
+    validating.
+    我们认为,最好能考虑综合、分明和务实:
+    信息结构、信息的意义和商业
+    logic governing our response to messages.
+
+在可能的情况下,在编辑上验证:
+    验证所需领域和允许的数量范围为:
+    我们想把它排除在我们ice干的密码之外。 Handlers should always
+    仅收到有效信息。
+
+Only validate what you require:
+    Use the Tolerant Reader pattern: read only the fields your application needs
+    and dondont overspecify their internal structure. Treating fields as opaque
+    他们的str力使你们具有很大的灵活性。
+
+Spend time writing helpers for valid:
+    采用clar示方式验证收到的信息并加以应用
+    给你的处理者的先决条件将使你的编码更加清洁。
+    有必要投入时间,使出卖代码易于维持。
+
+Locate each of the three types of certification in the right place:
+    电文课上可验证yn酸yn
+    管理可以在服务层或电讯公共汽车上进行。
+    实践和论证属于域模式。
+
+*****************************************************************
+
+
+TIP: Once youIPve validated the syntax and semantics of your commands
+    在你的系统边缘,该领域是其余地点
+    of your certification. 实践评估往往是核心部分
+    of your business rules.
+
+
+在软件方面,业务的实用性通常由操作者管理
+domain model. When we receive a message like "allocate three million units of
+`SCARCE-CLOCK` to order 76543," the message is  syntactically  valid and
+semantically  valid, but we,re unable to comply because we dondont have the stock
+现有。
+((valvalidation", startref="ix validid)))
