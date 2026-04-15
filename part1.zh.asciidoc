@@ -38,7 +38,7 @@ ____
 
 * <<chapter_04_service_layer,服务层（Service Layer）模式>>，用于清晰定义
   用例从哪里开始、到哪里结束
-  
+
 [role="pagebreak-before"]
 * <<chapter_06_uow,工作单元（Unit of Work）模式>>，用于提供原子操作
 
