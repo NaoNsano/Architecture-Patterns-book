@@ -1,0 +1,288 @@
+[[appendix_csvs]]
+[appendix]
+== Swapping Out the Infrastructure: [.keep-together]#Do Everything with CSVs#
+
+((CCSVs, doing everything with with, id="ix CSV")))
+本附录的用意是很少说明该附录的好处
+仓储（Repository）, 工作单元（Unit of Work）, and 服务层（Service Layer） patterns. 打算
+转自<<chapter_06_uow>>。
+
+就在我们完成建设我们的 &quot; Flask API &quot; 并准备释放之时,
+生意向我们表示log意,说他们不准备利用我们的 &quot; API &quot;
+并问我们是否能够造出一回事,从一对 of子和命令中解读。
+CSVs and outputs a third CSV with allocations.
+
+通常,这是可能有团队cur和pit的东西。
+and making notes for their memoirs. 但我们不能! 无,我们确保
+我们的基础设施关切与我们的领域模式毫不相干。
+服务层。 把手提给CSV将是一个简单的书面问题。
+of new `仓储（Repository）` and `UnitOfWork` classes, and then we well be able to reuse
+all  of our logic from the domain layer and the service layer.
+
+在这里,进行E2E测试,以显示CSV如何流出:
+
+[[first_csv_test]]
+.A first CSV test (tests/e2e/test csv.py)
+====
+[source,python]
+----
+def test_cli_app_reads_csvs_with_batches_and_orders_and_outputs_allocations(make_csv):
+    sku1, sku2 = random_ref("s1"), random_ref("s2")
+    batch1, batch2, batch3 = random_ref("b1"), random_ref("b2"), random_ref("b3")
+    order_ref = random_ref("o")
+    make_csv("batches.csv", [
+        ["ref", "sku", "qty", "eta"],
+        [batch1, sku1, 100, ""],
+        [batch2, sku2, 100, "2011-01-01"],
+        [batch3, sku2, 100, "2011-01-02"],
+    ])
+    orders_csv = make_csv("orders.csv", [
+        ["orderid", "sku", "qty"],
+        [order_ref, sku1, 3],
+        [order_ref, sku2, 12],
+    ])
+
+    run_cli_script(orders_csv.parent)
+
+    expected_output_csv = orders_csv.parent / "allocations.csv"
+    with open(expected_output_csv) as f:
+        rows = list(csv.reader(f))
+    assert rows == [
+        ["orderid", "sku", "qty", "batchref"],
+        [order_ref, sku1, "3", batch1],
+        [order_ref, sku2, "12", batch2],
+    ]
+----
+====
+
+Diving in and implementing without thinking about repositories and all
+你可以从这一点开始:
+
+
+[[first_cut_csvs]]
+.A first cut of our CSV reader/writer (src/bin/allocate-from-csv)
+====
+[source,python]
+[role="non-head"]
+----
+#!/usr/bin/env python
+import csv
+import sys
+from datetime import datetime
+from pathlib import Path
+
+from allocation.domain import model
+
+
+def load_batches(batches_path):
+    batches = []
+    with batches_path.open() as inf:
+        reader = csv.DictReader(inf)
+        for row in reader:
+            if row["eta"]:
+                eta = datetime.strptime(row["eta"], "%Y-%m-%d").date()
+            else:
+                eta = None
+            batches.append(
+                model.Batch(
+                    ref=row["ref"], sku=row["sku"], qty=int(row["qty"]), eta=eta
+                )
+            )
+    return batches
+
+
+def main(folder):
+    batches_path = Path(folder) / "batches.csv"
+    orders_path = Path(folder) / "orders.csv"
+    allocations_path = Path(folder) / "allocations.csv"
+
+    batches = load_batches(batches_path)
+
+    with orders_path.open() as inf, allocations_path.open("w") as outf:
+        reader = csv.DictReader(inf)
+        writer = csv.writer(outf)
+        writer.writerow(["orderid", "sku", "batchref"])
+        for row in reader:
+            orderid, sku = row["orderid"], row["sku"]
+            qty = int(row["qty"])
+            line = model.OrderLine(orderid, sku, qty)
+            batchref = model.allocate(line, batches)
+            writer.writerow([line.orderid, line.sku, batchref])
+
+
+if __name__ == "__main__":
+    main(sys.argv[1])
+----
+====
+
+//TODO: too much vertical whitespace in this listing
+
+It不想太坏! And we were reusing our domain model objects
+and our domain service.
+
+但是,它不起作用。 现有的拨款也需要成为一部分
+of our permanent CSV storage. We can write a second test to force us to improve
+things:
+
+[[second_csv_test]]
+.另外一个,现有拨款(试验/e2e/test csv.py)
+====
+[source,python]
+----
+def test_cli_app_also_reads_existing_allocations_and_can_append_to_them(make_csv):
+    sku = random_ref("s")
+    batch1, batch2 = random_ref("b1"), random_ref("b2")
+    old_order, new_order = random_ref("o1"), random_ref("o2")
+    make_csv("batches.csv", [
+        ["ref", "sku", "qty", "eta"],
+        [batch1, sku, 10, "2011-01-01"],
+        [batch2, sku, 10, "2011-01-02"],
+    ])
+    make_csv("allocations.csv", [
+        ["orderid", "sku", "qty", "batchref"],
+        [old_order, sku, 10, batch1],
+    ])
+    orders_csv = make_csv("orders.csv", [
+        ["orderid", "sku", "qty"],
+        [new_order, sku, 7],
+    ])
+
+    run_cli_script(orders_csv.parent)
+
+    expected_output_csv = orders_csv.parent / "allocations.csv"
+    with open(expected_output_csv) as f:
+        rows = list(csv.reader(f))
+    assert rows == [
+        ["orderid", "sku", "qty", "batchref"],
+        [old_order, sku, "10", batch1],
+        [new_order, sku, "7", batch2],
+    ]
+----
+====
+
+
+而且,我们可以保持对`load_batches`功能的警戒和补充线,
+以及某种追踪和拯救新拨款的方式 -- -- 但我们已经有这样做的榜样! 它被称为我们的复兴和工作模式。
+
+我们需要做的所有工作(我们需要做什么)都是重复这些同样的抽象,但
+With CSVs underlying them instead of a database. 正如你所看到的那样,这实际上是相对直接的。
+
+
+=== Implementing a 仓储（Repository） and 工作单元（Unit of Work） for CSVs
+
+
+((reprepositories", "CSV-based Library")))
+在这方面,基于CSV的储存库可以看什么。 摘录所有内容
+CSVs from disk, including the fact that it has to read  
+CSVs  (one for batches and one for allocations), and it gives us just
+The familiar `.list()` API, which provides the illusion of an in-memory
+域物体的收集:
+
+[[csv_repository]]
+.使用CSV作为其存储机制的存储处(机/地点/服务/服务/服务/天/天)
+====
+[source,python]
+----
+class CsvRepository(repository.AbstractRepository):
+    def __init__(self, folder):
+        self._batches_path = Path(folder) / "batches.csv"
+        self._allocations_path = Path(folder) / "allocations.csv"
+        self._batches = {}  # type: Dict[str, model.Batch]
+        self._load()
+
+    def get(self, reference):
+        return self._batches.get(reference)
+
+    def add(self, batch):
+        self._batches[batch.reference] = batch
+
+    def _load(self):
+        with self._batches_path.open() as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                ref, sku = row["ref"], row["sku"]
+                qty = int(row["qty"])
+                if row["eta"]:
+                    eta = datetime.strptime(row["eta"], "%Y-%m-%d").date()
+                else:
+                    eta = None
+                self._batches[ref] = model.Batch(ref=ref, sku=sku, qty=qty, eta=eta)
+        if self._allocations_path.exists() is False:
+            return
+        with self._allocations_path.open() as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                batchref, orderid, sku = row["batchref"], row["orderid"], row["sku"]
+                qty = int(row["qty"])
+                line = model.OrderLine(orderid, sku, qty)
+                batch = self._batches[batchref]
+                batch._allocations.add(line)
+
+    def list(self):
+        return list(self._batches.values())
+----
+====
+
+// TODO (hynek) re self._load(): DUDE! no i/o in init!
+
+
+(( &quot; 工作模式单位 &quot; , CUoW for CSVs")))
+And hereos what a UoW for CSVs would look like:
+
+
+
+[[csvs_uow]]
+.A UoW for CSVs: commit = csv.writer (src/allocation/service layer/csv uow.py)
+====
+[source,python]
+----
+class CsvUnitOfWork(unit_of_work.AbstractUnitOfWork):
+    def __init__(self, folder):
+        self.batches = CsvRepository(folder)
+
+    def commit(self):
+        with self.batches._allocations_path.open("w") as f:
+            writer = csv.writer(f)
+            writer.writerow(["orderid", "sku", "qty", "batchref"])
+            for batch in self.batches.list():
+                for line in batch._allocations:
+                    writer.writerow(
+                        [line.orderid, line.sku, line.qty, batch.reference]
+                    )
+
+    def rollback(self):
+        pass
+----
+====
+
+
+一旦我们有了这点,我们CLI就准备阅读和写信。
+中央统计局的拨款与它应该的拨款相 par合。
+阅读顺序和援引我国的代码
+existing  service layer:
+
+[role="nobreakinside less_space"]
+[[final_cli]]
+.按9行分配CSV(rc/bin/allocate-from-csv)
+====
+[source,python]
+----
+def main(folder):
+    orders_path = Path(folder) / "orders.csv"
+    uow = csv_uow.CsvUnitOfWork(folder)
+    with orders_path.open() as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            orderid, sku = row["orderid"], row["sku"]
+            qty = int(row["qty"])
+            services.allocate(orderid, sku, qty, uow)
+----
+====
+
+
+((CCSVs, doing everything with", startref="ix CSV")))
+Ta-da!  Now are y'all impressed or what ?
+
+Much love,
+
+Bob and Harry

@@ -1,0 +1,487 @@
+[[appendix_django]]
+[appendix]
+== 仓储（Repository） and 工作单元（Unit of Work） [.keep-together]#Patterns with Django#
+
+((DDjangogo, insinstallingling))
+((DDjangogo, id="ix Djangogo))
+Suppose you wanted to use Django instead of SQLAlchemy and Flask. How
+事情是否会看? 第一点是选择在何处安装。 We put it in a separate
+继我们的主要分配编码之后:
+
+
+[[django_tree]]
+====
+[source,text]
+[role="tree"]
+----
+├── src
+│   ├── allocation
+│   │   ├── __init__.py
+│   │   ├── adapters
+│   │   │   ├── __init__.py
+...
+│   ├── djangoproject
+│   │   ├── alloc
+│   │   │   ├── __init__.py
+│   │   │   ├── apps.py
+│   │   │   ├── migrations
+│   │   │   │   ├── 0001_initial.py
+│   │   │   │   └── __init__.py
+│   │   │   ├── models.py
+│   │   │   └── views.py
+│   │   ├── django_project
+│   │   │   ├── __init__.py
+│   │   │   ├── settings.py
+│   │   │   ├── urls.py
+│   │   │   └── wsgi.py
+│   │   └── manage.py
+│   └── setup.py
+└── tests
+    ├── conftest.py
+    ├── e2e
+    │   └── test_api.py
+    ├── integration
+    │   ├── test_repository.py
+...
+----
+====
+
+
+[TIP]
+====
+本附录的代码载于
+Appendix django branch https://oreil.ly/A-I76[on GitHub]:
+
+----
+git clone https://github.com/cosmicpython/code.git
+cd code
+git checkout appendix_django
+----
+
+法例从<<chapter_06_uow>>的结尾起。
+
+====
+
+
+=== 仓储（Repository） Pattern with Django
+
+((pypytest", pypytest-django plug-inug))
+((Re仓储（Repository） pattern pattern, "with Django", id="ix RepoDjangogo)))
+((DDjangogo, Re仓储（Repository） pattern with with, id="ix DjangoRepopo)))
+We used a plugin called
+https://github.com/pytest-dev/pytest-django[`pytest-django`]帮助测试
+数据库管理。
+
+Rewriting the first Library test was a minimal change-just rewriting
+Some raw SQL with a call to the Django ORM/QuerySet language:
+
+
+[[django_repo_test1]]
+.经调整的第一次储存试验(试验/整合/试验-复印)
+====
+[source,python]
+----
+from djangoproject.alloc import models as django_models
+
+
+@pytest.mark.django_db
+def test_repository_can_save_a_batch():
+    batch = model.Batch("batch1", "RUSTY-SOAPDISH", 100, eta=date(2011, 12, 25))
+
+    repo = repository.DjangoRepository()
+    repo.add(batch)
+
+    [saved_batch] = django_models.Batch.objects.all()
+    assert saved_batch.reference == batch.reference
+    assert saved_batch.sku == batch.sku
+    assert saved_batch.qty == batch._purchased_quantity
+    assert saved_batch.eta == batch.eta
+----
+====
+
+
+第二次测试是更多参与的,因为它有拨款,
+但是,它仍然由熟悉的《Django守则》组成:
+
+[[django_repo_test2]]
+.第二次储存试验更多(试验/整合/试验-复制.间)
+====
+[source,python]
+----
+@pytest.mark.django_db
+def test_repository_can_retrieve_a_batch_with_allocations():
+    sku = "PONY-STATUE"
+    d_line = django_models.OrderLine.objects.create(orderid="order1", sku=sku, qty=12)
+    d_batch1 = django_models.Batch.objects.create(
+        reference="batch1", sku=sku, qty=100, eta=None
+    )
+    d_batch2 = django_models.Batch.objects.create(
+        reference="batch2", sku=sku, qty=100, eta=None
+    )
+    django_models.Allocation.objects.create(line=d_line, batch=d_batch1)
+
+    repo = repository.DjangoRepository()
+    retrieved = repo.get("batch1")
+
+    expected = model.Batch("batch1", sku, 100, eta=None)
+    assert retrieved == expected  # Batch.__eq__ only compares reference
+    assert retrieved.sku == expected.sku
+    assert retrieved._purchased_quantity == expected._purchased_quantity
+    assert retrieved._allocations == {
+        model.OrderLine("order1", sku, 12),
+    }
+----
+====
+
+在这方面,实际储存库如何结束研究:
+
+
+[[django_repository]]
+.A Django Library (src/allocation/adapters/repository.py)
+====
+[source,python]
+----
+class DjangoRepository(AbstractRepository):
+    def add(self, batch):
+        super().add(batch)
+        self.update(batch)
+
+    def update(self, batch):
+        django_models.Batch.update_from_domain(batch)
+
+    def _get(self, reference):
+        return (
+            django_models.Batch.objects.filter(reference=reference)
+            .first()
+            .to_domain()
+        )
+
+    def list(self):
+        return [b.to_domain() for b in django_models.Batch.objects.all()]
+----
+====
+
+
+You can see that the implementation relies on the Django models having
+Some Custom methods for translating to and from our domain model.footnote:[
+The DRY-Python project people have built a tool called
+https://mappers.readthedocs.io/en/latest[mappers] that looks like it might
+帮助尽量减少这种物质的bo。 ]
+
+
+==== Django ORM级向/从我们的主模中转化的习惯方法
+
+((dodomain model", DDjango Custom ORM methods for conversion")))
+((relobject-relational mappers (ORMs)", DDjango, Custom methods to translate to/from domain model")))
+这些习惯方法就是这样:
+
+[[django_models]]
+.Django ORM with Custom methods for domain model conversion (src/djangoproject/alloc/models.py)
+====
+[source,python]
+----
+from django.db import models
+from allocation.domain import model as domain_model
+
+
+class Batch(models.Model):
+    reference = models.CharField(max_length=255)
+    sku = models.CharField(max_length=255)
+    qty = models.IntegerField()
+    eta = models.DateField(blank=True, null=True)
+
+    @staticmethod
+    def update_from_domain(batch: domain_model.Batch):
+        try:
+            b = Batch.objects.get(reference=batch.reference)  #<1>
+        except Batch.DoesNotExist:
+            b = Batch(reference=batch.reference)  #<1>
+        b.sku = batch.sku
+        b.qty = batch._purchased_quantity
+        b.eta = batch.eta  #<2>
+        b.save()
+        b.allocation_set.set(
+            Allocation.from_domain(l, b)  #<3>
+            for l in batch._allocations
+        )
+
+    def to_domain(self) -> domain_model.Batch:
+        b = domain_model.Batch(
+            ref=self.reference, sku=self.sku, qty=self.qty, eta=self.eta
+        )
+        b._allocations = set(
+            a.line.to_domain()
+            for a in self.allocation_set.all()
+        )
+        return b
+
+
+class OrderLine(models.Model):
+    #...
+----
+====
+
+value1, 对于价值物体,`objects.get_or_create`可工作,但对于实体而言,
+    You probably need an explicit try-get/except to handle the upsert.footnote:[
+    `@mr-bo-jangles`建议你可以使用https://oreil.ly/HTq1r[`update_or_create`],
+    但在我们的Django-fu之外。 ]
+
+We2 We We've显示了这里最复杂的例子。 如果你决定这样做,
+    意识到会有bo想! 非常感谢
+    复杂的bo。
+
+Relationship3 Relationship 关系也需要有某种谨慎的习惯处理。
+
+
+NOTE: As in <<chapter_02_repository>>, we use dependency inversion.
+    The ORM (Django) depends on the model and not the other way around.
+    ((DDjangogo, Re仓储（Repository） pattern with with, startref="ix DjangoRepopo)))
+    ((Re仓储（Repository） pattern pattern, "with Django", startref=Reix RepoDjangogo)))
+
+
+
+=== 工作单元（Unit of Work） Pattern with Django
+
+
+((DDjangogo, Uni工作单元（Unit of Work） pattern with", id="ix DjangoUoW"))
+((Uni工作单元（Unit of Work） pattern", "with Django", id="ix UoWDjangogo)))
+The tests don't change too much:
+
+[[test_uow_django]]
+.百日)试验(试验/整合/试验ow)
+====
+[source,python]
+----
+def insert_batch(ref, sku, qty, eta):  #<1>
+    django_models.Batch.objects.create(reference=ref, sku=sku, qty=qty, eta=eta)
+
+
+def get_allocated_batch_ref(orderid, sku):  #<1>
+    return django_models.Allocation.objects.get(
+        line__orderid=orderid, line__sku=sku
+    ).batch.reference
+
+
+@pytest.mark.django_db(transaction=True)
+def test_uow_can_retrieve_a_batch_and_allocate_to_it():
+    insert_batch("batch1", "HIPSTER-WORKBENCH", 100, None)
+
+    uow = unit_of_work.DjangoUnitOfWork()
+    with uow:
+        batch = uow.batches.get(reference="batch1")
+        line = model.OrderLine("o1", "HIPSTER-WORKBENCH", 10)
+        batch.allocate(line)
+        uow.commit()
+
+    batchref = get_allocated_batch_ref("o1", "HIPSTER-WORKBENCH")
+    assert batchref == "batch1"
+
+
+@pytest.mark.django_db(transaction=True)  #<2>
+def test_rolls_back_uncommitted_work_by_default():
+    ...
+
+@pytest.mark.django_db(transaction=True)  #<2>
+def test_rolls_back_on_error():
+    ...
+----
+====
+
+<1,因为我们在这些测试中没有什么帮助功能,所以实际
+    试验的主要体格与试验体相同
+    SQLAlchemy.
+
+required2 The `pytest-django` `mark.django_db(transaction=True)`需要
+    检验我们的习惯交易/发回行为。
+
+
+
+执行工作十分简单,尽管我只好几个。
+试图找到哪些人援引Djangogos交易磁力
+工作:
+
+
+[[start_uow_django]]
+.UoW adapted for Django (src/allocation/service layer/unit of work.py)
+====
+[source,python]
+----
+class DjangoUnitOfWork(AbstractUnitOfWork):
+    def __enter__(self):
+        self.batches = repository.DjangoRepository()
+        transaction.set_autocommit(False)  #<1>
+        return super().__enter__()
+
+    def __exit__(self, *args):
+        super().__exit__(*args)
+        transaction.set_autocommit(True)
+
+    def commit(self):
+        for batch in self.batches.seen:  #<3>
+            self.batches.update(batch)  #<3>
+        transaction.commit()  #<2>
+
+    def rollback(self):
+        transaction.rollback()  #<2>
+----
+====
+
+P1 P `set_autocommit(False)`是告诉Django停止
+    * 立即自动实施每一种机构风险管理行动,并
+    开始交易。
+
+.2 The 然后我们使用明显的 roll动和承诺。
+
+difficulty3> One difficulty: because, unlike SQLAlchemy, we're not
+    域模型本身,即
+    `commit()`突击队需要明确穿过所有
+    每个储存库和人工触及的物体
+    Update them back to the ORM.
+    ((DDjangogo, Uni工作单元（Unit of Work） pattern with", startref="ix DjangoUoW"))
+    ((Uni工作单元（Unit of Work） pattern", "with Django", startref=Uix UoWDjangogo)))
+
+
+
+=== API: Django Views Are Adapters
+
+((adaadapters", DDjango views"))
+((viviews", DDjango views as adapters")))
+((PIAPIsPI,"Django views as adapters")))
+((DDjangogo,"views are adapters")))
+Django  views.py  file ends up being almost identical to the
+老 flask app.py ,因为我们的架构意味着它是一个非常 architecture的东西
+rap在我们服务层周围(根本就有改变,方式):
+
+
+[[django_views]]
+.Flask app -> Django views (src/djangoproject/alloc/views.py)
+====
+[source,python]
+----
+os.environ["DJANGO_SETTINGS_MODULE"] = "djangoproject.django_project.settings"
+django.setup()
+
+
+@csrf_exempt
+def add_batch(request):
+    data = json.loads(request.body)
+    eta = data["eta"]
+    if eta is not None:
+        eta = datetime.fromisoformat(eta).date()
+    services.add_batch(
+        data["ref"], data["sku"], data["qty"], eta,
+        unit_of_work.DjangoUnitOfWork(),
+    )
+    return HttpResponse("OK", status=201)
+
+
+@csrf_exempt
+def allocate(request):
+    data = json.loads(request.body)
+    try:
+        batchref = services.allocate(
+            data["orderid"],
+            data["sku"],
+            data["qty"],
+            unit_of_work.DjangoUnitOfWork(),
+        )
+    except (model.OutOfStock, services.InvalidSku) as e:
+        return JsonResponse({"message": str(e)}, status=400)
+
+    return JsonResponse({"batchref": batchref}, status=201)
+----
+====
+
+
+=== Why Was This All So Hard?
+
+((DDjangogo, usingusing, difficulty of difficulty))
+OK, it works, but it does feel like more effort than Flask/SQLAlchemy. Why is
+That?
+
+低级的主要原因是,Djangogos ORM从事同样的工作
+way. We dondont have an equivalent of the SQLchemy classical mapper, so our our
+`ActiveRecord` and our domain model can cant be the same object. 相反,我们必须
+Building a manual translation layer behind the Library. 更多
+工作(尽管做过工作,但目前的维护负担太过重
+高)。
+
+((pypytest", pypytest-django pluginug))
+由于Django非常紧跟数据库,你必须使用帮助者
+像`pytest-django`那样,认真思考测试数据库,从右翼
+第一个编码线,即我们必须在我们开始的时候这样做
+out with our pure domain model.
+
+但是,在更高一级,Django是如此伟大的整个原因
+是围绕着we子设计的,使建立民盟变得容易。
+apps with minimal boilerplate. 但是,我们书的主旨是:
+当你的应用程序不再是简单的CRUD app时要做什么。
+
+At that point, Django starts hindering more than it helps. Things like the
+Django admin在你开始时非常麻,,变得非常危险
+如果你的全部内容是建立一套复杂的规则和模式
+around the workflow of state changes. Django admin绕过了所有这一切。
+
+=== What to Do If You Already Have Django
+
+((DDjangogo, appapplying patterns to Django app"))
+因此,如果你想适用本书中的某些模式,你应该做些什么。
+to a Django app? 我们说:
+
+* 工作模式的储存和股将相当多工作。 The
+  他们将在短期内买到你的主要东西是更快的单位测试,因此
+  Evaluation whether that benefit feels worth it in your case. 从长远来看,
+  decouple your app from Django and the database, so if you foresee wanting
+  迁离其中任何一个人,即叛国和乌瓦人是一个很好的想法。
+
+* 如果你认为存在许多重复,服务周期的模式可能值得关注。
+  views.py . 这可以是把你的使用案例与你的网络终点分开考虑的一种良好方式。
+
+* 在理论上,你仍然可以做DDD,并用Django模型进行域形模型。
+  随着数据库的紧ly,你可能被放慢
+  Migrations, but it shouldn.t be fatal. 只要你的申请不太长
+  你的测试过于复杂,时间太慢,你可能无法从中找到东西
+  fat models  approach: push as much logic down to your models as possible,
+  and apply patterns like Entity, Value Object, and 聚合（Aggregate）. However, see
+  the following caveat.
+
+尽管如此,
+https://oreil.ly/Nbpjj[word
+In the Django community] is that people find that the fat models approach runs into
+其自身的可扩展性问题,特别是管理相互依存问题
+between apps. 在这些情况下,要抽出一块,就要说很多。
+你的观点和形式之间的商业逻辑或域层
+你的 models.py ,然后可以尽可能少地保存。
+
+=== Steps Along the Way
+
+((DDjangogo, appapplying patterns to Django app", "steps along the way"))
+Suppose you're working on a Django project that you're not sure is going
+to get complex enough to warrant the patterns we recommend, but you still
+想采取一些步骤,使你的生活更加容易,无论是在中期还是在中期。
+任期,如果你想稍后迁移到我们的一些模式。 考虑:
+
+* 我们听到的一个建议是,从第一天起,将一张十字.写成Django的每一件。 这使你有机会提出商业逻辑并保持你的声誉。
+  forms, views, and models free of business logic. 它可以成为一个stone石块
+  for moving to a fully decoupled domain model and/or service layer later.
+
+* 商业界可开始与Django型物体合作,但后来又完全脱离框架和工作
+  plain Python data structures.
+
+[role="pagebreak-before"]
+* 就读者而言,你可以通过将读者写成读者,获得CQRS的一些好处。
+  避免机构风险管理的呼声遍及各地。
+
+* 在区分读物模块和域逻辑模块时,
+  也许值得将你自己与Django apps级脱钩。 商业
+  关切将贯穿这些关切。
+
+
+NOTE: We Wed like to give a shout-out to David Seddon and Ashia Zawaduk for
+    通过本附录中的一些想法进行讨论。 They did their best to
+    阻止我们就我们真正致力于的一个专题说任何真的st言。
+    具有足够的个人经验,但可能失败。
+
+((DDjangogo, startref="ix Djangogo))
+就现有想法和实际生活经验而言
+applications, refer to the <<epilogue_1_how_to_get_there_from_here, epilogue>>.

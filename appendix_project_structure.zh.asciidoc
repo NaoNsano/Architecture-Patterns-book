@@ -1,0 +1,397 @@
+[[appendix_project_structure]]
+[appendix]
+== A Template Project Structure
+
+((项目", temptemplate project structure", id="ix prjstrctpr))
+Around <<chapter_04_service_layer>>, we moved from just having
+每一件事都归功于更有条理的树木,我们认为它可能
+有必要概述搬迁部分。
+
+[TIP]
+====
+本附录的代码载于
+Appendix project structure branch https://oreil.ly/1rDRC[on GitHub]:
+
+----
+git clone https://github.com/cosmicpython/code.git
+cd code
+git checkout appendix_project_structure
+----
+====
+
+
+The basic folder structure looks like this:
+
+[[project_tree]]
+.Project tree
+====
+[source,text]
+[role="tree"]
+----
+.
+├── Dockerfile  <1>
+├── Makefile  <2>
+├── README.md
+├── docker-compose.yml  <1>
+├── license.txt
+├── mypy.ini
+├── requirements.txt
+├── src  <3>
+│   ├── allocation
+│   │   ├── __init__.py
+│   │   ├── adapters
+│   │   │   ├── __init__.py
+│   │   │   ├── orm.py
+│   │   │   └── repository.py
+│   │   ├── config.py
+│   │   ├── domain
+│   │   │   ├── __init__.py
+│   │   │   └── model.py
+│   │   ├── entrypoints
+│   │   │   ├── __init__.py
+│   │   │   └── flask_app.py
+│   │   └── service_layer
+│   │       ├── __init__.py
+│   │       └── services.py
+│   └── setup.py  <3>
+└── tests  <4>
+    ├── conftest.py  <4>
+    ├── e2e
+    │   └── test_api.py
+    ├── integration
+    │   ├── test_orm.py
+    │   └── test_repository.py
+    ├── pytest.ini  <4>
+    └── unit
+        ├── test_allocate.py
+        ├── test_batches.py
+        └── test_services.py
+----
+====
+
+ock1 Our 我们的ock石成分对称和我们的ock石流ile是组合的主要its子
+    for the containers that run our app, and they can also run the tests (for CI). A
+    更复杂的项目可能有几处Dockerfiles,尽管我们发现,
+    尽量减少图像数量通常是一个很好的想法。
+    用于生产和测试的图像有时是一个好的设想,但 we的倾向是
+    to find that going further and trying to split out different images for
+    不同类型的应用代码(例如,Web API 和pub/sub client)通常
+    Ends up being more trouble than it worths worth; the cost in terms of complexity
+    and longer rebuild/CI times is too high. YMMV.]
+
+Ma2 A A  Makefile   提供所有典型指挥部的入口点
+    (或CI服务器)可能希望在正常工作流程中运行:
+    build`, `make test`, and so on.footnote:[A pure-Python alternative to Makefiles is
+    http://www.pyinvoke.org[Invoke], worth checking out if everyone on your
+    小组知道Python(或至少知道它比巴什要好! ] 这是任择的。 You could just use
+    `docker-compose` and `pytest` directly, but if nothing else, it its nice to
+    在某些地方,所有 &quot; 共同指挥 &quot; 都有,与 &quot; 共同指挥 &quot; 不同
+    a &quot; 马克菲利 &quot; 指代码,因此,其偏离日期的趋势较小。
+
+<3> All the source code for our app, including the domain model, the
+    Flask app, and infrastructure code, lives in a Python package inside
+    src ,footnote:[https://hynek.me/articles/testing-packaging["Testing and Packaging"] by Hynek Schlawack provides more information on  src  folders.]
+    which we install using `pip install -e` and the  setup.py  file. This makes
+    进口容易。 目前,该单元的结构完全统一,
+    但是,对于一个更加复杂的项目,你期望发展一个fold的等级结构
+    这包括 domain model/ 、 infrastructure/ 、 services/ 和 api/ 。
+
+
+Test4Test Tests live in their own folder. 不同的试验
+    类型和允许你分别经营。 We can keep shared fixtures
+    如果我们的话,主要试验组件中的(conf)和更具体的试验组件中
+    希望。 This is also the place to keep  pytest.ini .
+
+
+
+TIP: The https://oreil.ly/QVb9Q[pytest docs] are really good on test layout and importability.
+
+
+Let Lets look at a few of these files and concepts in more detail.
+
+
+
+=== Env Vars, 12-Factor, and Config, Inside and Outside Containers
+
+我们在这里试图解决的基本问题是,我们需要不同
+以下会议的大致背景:
+
+- 可从你自己的 de机直接开启密码或试验
+  谈话,绘制Docker集装箱的港口地图
+
+- 集装箱本身的跑道,有rereal ports港口和东道国名称
+
+- 不同的集装箱环境(ev、tag、 pro等)
+
+按照环境变量提出的说明
+https://12factor.net/config[12-factor manifesto] will solve this problem,
+但是,具体来说,我们如何在我们的守则和我们的集装箱中执行它?
+
+
+=== Config.py
+
+Whenever our application code needs access to some config, it its going to
+取自称为 config.py 的档案。 这是我们举出的几个例子。
+app:
+
+[[config_dot_py]]
+.相同混凝土功能(热/定位/混凝土)
+====
+[source,python]
+----
+import os
+
+
+def get_postgres_uri():  #<1>
+    host = os.environ.get("DB_HOST", "localhost")  #<2>
+    port = 54321 if host == "localhost" else 5432
+    password = os.environ.get("DB_PASSWORD", "abc123")
+    user, db_name = "allocation", "allocation"
+    return f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
+
+
+def get_api_url():
+    host = os.environ.get("API_HOST", "localhost")
+    port = 5005 if host == "localhost" else 80
+    return f"http://{host}:{port}"
+----
+====
+
+<1> We use functions for getting the current config, rather than constants
+    可在进口时间获得,因为允许客户代码修改
+    `os.environ` if it needs to.
+
+conf2conf  config.py  also defines some default settings, designed to work when
+    running the code from the developer's local machine.footnote:[
+    这使我们得以建立地方发展结构,调整工作(尽可能多)。
+    You may prefer to fail hard on missing environment variables instead, particularly
+    如果任何违约行为在生产中均无保障。 ]
+
+An elegant Python package called
+https://github.com/hynek/environ-config[_environ-config_] is worth looking
+at if you get tired of hand-rolling your own environment-based config functions.
+
+TIP: Don't let this config module become a dumping ground that is full of things only vaguely related to config and that is then imported all over the place.
+    Keep things immutable and modify them only via environment variables.
+    If you decide to use a <<chapter_13_dependency_injection,bootstrap script>>,
+    你可以使它成为进口混凝土的唯一地点(除试验外)。
+
+=== Docker-Compose and Containers Config
+
+We use a lightweight Docker containers orchestration tool called  docker-compose .
+It Its main Structure is via a YAML file (sigh):footnote:[Harry is a bit YAML-weary.
+It Its  everywhere , and yet he can never remember the syntax or how it its supposed
+to indent.]
+
+
+[[docker_compose]]
+.conf-comp conf  file
+====
+[source,yaml]
+----
+version: "3"
+services:
+
+  app:  #<1>
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - postgres
+    environment:  #<3>
+      - DB_HOST=postgres  <4>
+      - DB_PASSWORD=abc123
+      - API_HOST=app
+      - PYTHONDONTWRITEBYTECODE=1  #<5>
+    volumes:  #<6>
+      - ./src:/src
+      - ./tests:/tests
+    ports:
+      - "5005:80"  <7>
+
+
+  postgres:
+    image: postgres:9.6  #<2>
+    environment:
+      - POSTGRES_USER=allocation
+      - POSTGRES_PASSWORD=abc123
+    ports:
+      - "54321:5432"
+----
+====
+
+ock1comp 在 docker-compose 案卷中,我们界定了不同的服务 
+    (容器) that we need for our app. Usually one main image
+    载有我们的所有守则,我们可以用它来管理我们的反贪局、我们的试验,
+    或需要使用领域模式的任何其他服务。
+
+You2 You Youllll大概有其他基础设施服务,包括数据库。
+    In production you might not use containers for this; you might have a cloud
+    而是提供者,但 docker-compose 使我们成为生产一种方法
+    Similar service for dev or CI.
+
+P3 The The `environment` stanza lets you set the environment variables for your
+    集装箱、东道名称和港口从多克集群内看到。
+    If you have enough containers that information start to be duplicated in
+    这些部分可以使用`environment_file`。 We usually call
+    ours  container.env .
+
+cluster4comp 在集群之外, docker-compose 建立网络,使集装箱成为集装箱
+    彼此可以通过服务名后指定的东道方名。
+
+Pro5 Pro Pro tip: if youuntre mounting volumes to share source folders between your
+    local dev machine and the containers, the `PYTHONDONTWRITEBYTECODE` environment variable
+    告诉Python不要写 .pyc 案卷,这将使你免于损失
+    拥有数以百万计的地产档案,全部用在你的地方档案系统上,
+    全然不想删除和造成湿 compile汇编者错误。
+
+P6> Mounting our source and test code as `volumes` means we don't need to rebuild
+    我们每一次改变编码。
+
+P7 The The `ports` section allows us to expose the ports from inside the containers
+    to the outside worldfootnote:[On a CI server, you may not be able to expose
+    任意的港口是可靠的,但只是当地的方便。 You
+    可以找到使这些港口制图成为可选办法(例如,
+    docker-compose.override.yml  ]-these correspond to the default ports we set
+    in  config.py .
+
+NOTE: Inside Docker, other containers are available through hostnames named after
+    their service name. Outside Docker, they are available on `localhost`, at the
+    Port defined in the `ports` section.
+
+
+=== 资料来源
+
+All our application code (everything except tests, really) lives inside an
+src  folder:
+
+[[src_folder_tree]]
+.r
+====
+[source,text]
+[role="skip"]
+----
+├── src
+│   ├── allocation  #<1>
+│   │   ├── config.py
+│   │   └── ...
+│   └── setup.py  <2>
+----
+====
+
+fold1fold Subfolders define top-level module names. 如果你愿意的话,你可以有多种机会。
+
+set2set And  setup.py  is the file you need to make it pip-installable, shown next.
+
+[[setup_dot_py]]
+.三个项目(rc/setup.py)的辅助模块
+====
+[source,python]
+----
+from setuptools import setup
+
+setup(
+    name="allocation", version="0.1", packages=["allocation"],
+)
+----
+====
+
+这正是你们需要的。 `packages=`具体说明了你的子fold的名称
+想安装上层模块。 `name`入境只是 co,但
+它需要。 For a package that thats never actually going to hit PyPI, it itll
+do fine.footnote:[For more  setup.py  tips, see
+关于包装的https://oreil.ly/KMWDz[this条]
+
+
+=== ock石
+
+Dockerfiles are going to be very project-specific, but here are a few key stages
+你期望看到:
+
+[[dockerfile]]
+.Our Dockerfile (Dockerfile)
+====
+[source,dockerfile]
+----
+FROM python:3.9-slim-buster
+
+<1>
+# RUN apt install gcc libpq (no longer needed bc we use psycopg2-binary)
+
+<2>
+COPY requirements.txt /tmp/
+RUN pip install -r /tmp/requirements.txt
+
+<3>
+RUN mkdir -p /src
+COPY src/ /src/
+RUN pip install -e /src
+COPY tests/ /tests/
+
+<4>
+WORKDIR /src
+ENV FLASK_APP=allocation/entrypoints/flask_app.py FLASK_DEBUG=1 PYTHONUNBUFFERED=1
+CMD flask run --host=0.0.0.0 --port=80
+----
+====
+
+tal1tal 系统一级托管
+tal2 In tal tal tal tal tal tal tal tal tal tal
+    受扶养人;我们在此是为了简单起见
+Co3 Co 复制和安装我们的来源
+Optional4 Optional Optionally configuring a default startup command (yououll probably override
+    This a lot from the command line)
+
+TIP: One thing to note is that we install things in the order of how frequently they
+    可能会改变。 这使我们得以最大限度地利用ock克建造ache。 I
+    可以告诉你,这一教训是多少痛苦和挫折。 For this
+    and many more Python Dockerfile improvement tips, check out
+    https://pythonspeed.com/docker["Production-Ready Docker Packaging.].
+
+=== 测试
+
+((testtestingtest, testtests folder tree"))
+我们的试验与其他一切一起进行,如此所示:
+
+[[tests_folder]]
+.试验fold树
+====
+[source,text]
+[role="tree"]
+----
+└── tests
+    ├── conftest.py
+    ├── e2e
+    │   └── test_api.py
+    ├── integration
+    │   ├── test_orm.py
+    │   └── test_repository.py
+    ├── pytest.ini
+    └── unit
+        ├── test_allocate.py
+        ├── test_batches.py
+        └── test_services.py
+----
+====
+
+这里没有什么特别的区别,只是某些不同的试验类型分开。
+that you,re likely to want to run separately, and some files for common fixtures,
+config, and so on.
+
+试验fold中没有set旋fold或set旋set。
+必须先天进行试验,但如果你有困难
+你可以找到进口途径。
+
+
+=== Wrap-Up
+
+这些是我们的基本组成部分:
+
+* 资料来源代码,使用 setup.py 
+* Some Docker config for spinning a local cluster that mirrors production as far as possible
+* 通过环境变量进行密封,集中在Python案卷中,称为 config.py ,有缺省可操作 outside  containers
+* A Makefile for useful command-line, um, commands
+
+((tempprojects", temptemplate project structure", startref=prix prjstrctpr))
+We doubt that anyone will end up with  exactly  the same solutions we did, but we hope you
+在这里发现一些灵感。

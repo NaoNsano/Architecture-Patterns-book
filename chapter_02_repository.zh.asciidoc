@@ -1,0 +1,1013 @@
+[[chapter_02_repository]]
+== 仓储（Repository）模式
+
+现在是兑现我们承诺的时候了,即把依赖性version依原则作为 promise依原则
+a way of decoupling our core logic from infrastructural concerns.
+
+((storstorage", seealso=reprepositories; 仓储（Repository） pattern")))
+((Re 仓储（Repository） pattern"))
+((数据储存、储存模式和 Rep))
+We Well introduce the  仓储（Repository）  pattern, a simplifying abstraction over data storage,
+允许我们把我们的样板层与数据层脱钩。 We'll present a
+简化抽象做法如何使我们的制度更加具体的例子
+通过隐藏数据库的复杂情况进行测试。
+
+<<maps_chapter_02>>光显示对我们建设的东西稍有review想:
+a `仓储（Repository）`物体,在我们的域模型和数据库之间its。
+
+[[maps_chapter_02]]
+.储存前和之后
+image::images/apwp_0201.png[]
+
+[TIP]
+====
+本章的守则载于
+Chapter 02 repository branch https://oreil.ly/6STDu[on GitHub].
+
+----
+git clone https://github.com/cosmicpython/code.git
+cd code
+git checkout chapter_02_repository
+# or to code along, checkout the previous chapter:
+git checkout chapter_01_domain_model
+----
+====
+
+
+=== Persisting Our 领域模型（Domain Model）
+
+((dodomain model", perpersistingting))
+In <<chapter_01_domain_model>> we built a simple domain model that can allocate orders
+to batches of stock. 我们很容易对这项守则进行写作测试,因为
+There aren.t any dependencies or infrastructure to set up. If we needed to run
+a database or an API and create test data, our tests would be harder to write
+and maintain.
+
+可悲的是,在某个时候,我们需要把我们的完美模式付诸东流。
+用户和与电子表格和网络的真实世界争夺
+browsers and race conditions. 在今后几章中,我们将研究一下
+我们如何能够将我们理想的域模式与外部国家联系起来。
+
+((最低限度可行产品))
+我们期望以灵活的方式开展工作,因此我们的优先事项是实现一个目标。
+尽快取得最起码可行的产品。 就我们的情况而言,这将会是
+a Web API. In a real project, you might dive straight in with some end-to-end
+在网络框架内进行测试和开pl,测试外事。
+
+但是,我们知道,无论什么,我们都需要某种形式的持久性。
+储存,这是一本教科书,因此,我们可以让自己有更细微的it子。
+自下而上的发展并开始考虑储存和数据库。
+
+
+=== Some Pseudocode: What Are We Going to Need?
+
+当我们建立我们第一个 &quot; 反倾销倡议 &quot; 终点时,我们知道我们会有 &quot;  we &quot; 。
+Some code that looks more or less like the following.
+
+[[api_endpoint_pseudocode]]
+.我们第一个 &quot; 爱好者 &quot; 的终点将视像我们的第一个终点。
+====
+[role="skip"]
+[source,python]
+----
+@flask.route.gubbins
+def allocate_endpoint():
+    # extract order line from request
+    line = OrderLine(request.params, ...)
+    # load all batches from the DB
+    batches = ...
+    # call our domain service
+    allocate(line, batches)
+    # then save the allocation back to the database somehow
+    return 201
+----
+====
+
+NOTE: We Weve used Flask because it's lightweight, but you don't need
+    to be a Flask user to understand this book. In fact, we well show you how
+    to make your choice of framework a minor detail.
+    ((框架))
+
+We Well need a way to retrieve batch info from the database and instantiate our domain
+其示范物体和湿重也需要一种办法,使这些物体回到原来的位置。
+数据库。
+
+What? Oh, gugubbins" is a British word for ststuff." You can just ignore that. It Its pseudocode, OK? 
+
+
+=== 使用DIP获得数据
+
+((构建结构))
+((数据获取,适用依赖性转换原则)))
+As mentioned in the <<introduction, introduction>>, a layered architecture is a common common
+ 建立一个有统一制度、一些逻辑和数据库的制度(见
+<<layered_architecture2>>).
+
+[role="width-75"]
+[[layered_architecture2]]
+.结构
+image::images/apwp_0202.png[]
+
+
+Djangogos Model-View-Template structure is closely related, as is
+Model-View-Controller (MVC). 无论如何,目的是保持各层。
+(这是一个好事),每一层只取决于一个层
+下文。
+
+((独立、无领域模式))
+But we want our domain model to have    no dependencies whatsoever .footnote:[
+I suppose we mean  stateno stateful dependencies. state 视辅助图书馆而定
+fine; depending on an ORM or a web framework is not.]
+We dondont want infrastructure concerns bleeding over into our domain model and
+减缓我们的单位测试或我们进行变革的能力。
+
+((ononion architecture architecture))
+相反,正如导言中所讨论的,我们认为我们的模式正在出现
+sideinside," and dependencies flowing inward to it; this is what people sometimes call
+onion architecture  (see <<onion_architecture>>).
+
+[role="width-75"]
+[[onion_architecture]]
+.离岸建筑
+image::images/apwp_0203.png[]
+[role="image-source"]
+----
+[ditaa, apwp_0203]
++------------------------+
+|   Presentation Layer   |
++------------------------+
+           |
+           V
++--------------------------------------------------+
+|                  Domain Model                    |
++--------------------------------------------------+
+                                        ^
+                                        |
+                             +---------------------+
+                             |    Database Layer   |
+                             +---------------------+
+----
+
+[role="nobreakinside less_space"]
+.该港口和阿达佩斯是否?
+****
+If you,ve been reading about architectural patterns, you may be asking
+你本身的问题:
+
+____
+Is this ports and adapters? 还是是六位结构? Is that the same as onion structures? What about the clean architecture? What ports a port, and what's an adapter? 为什么你们的人民有这么多的话。
+____
+
+((独立转换原则))
+((SeeSeemann, Mark, blog post"))
+虽然有些人想 n息分歧,但所有这一切都是如此。
+pretty much names for the same thing, and they all boil down to the
+依赖转换原则:高级别模块(领域)应当
+Not depend on low-level ones (the infrastructure).footnote:[Mark Seemann has
+关于该专题的https://oreil.ly/LpFS9[an极好的博客员额。 ]
+
+We Well get into some of the nitty-gritty-gritty around "depending on abstractions,"
+and whether there is a Pythonic equivalent of interfaces,
+<<depend_on_abstractions,later in the book>>. 另见<<what_is_a_port_and_what_is_an_adapter>>。
+****
+
+
+=== Reminder: Our Model
+
+((dodomain model", id="ix domod")))
+让我们提醒自己注意我们的域模式(见<<model_diagram_reminder>>):
+拨款是将`OrderLine`与`Batch`联系起来的概念。 Werere
+储存拨款,作为我们`Batch`物体的收藏品。
+
+[[model_diagram_reminder]]
+.我们的模式
+image::images/apwp_0103.png[]
+// see chapter_01_domain_model for diagram source
+
+让我们看到我们如何将这转化为一个关系数据库。
+
+
+==== The RMNormalRM ORM Way: Model Depends on ORM
+
+((QSQL","generating for domain model objects"))
+((dodomain model", transtranslating to relational database", nornormal ORM way, model depends on ORM")))
+These days, it.s unlikely that your team members are hand-rolling their own SQL queries.
+Instead, you youre almost certainly using some kind of framework to generate
+SQL for you based on your model objects.
+
+((relobject-relational mappers (ORMs)")))
+These frameworks are called  object-relational mappers  (ORMs) because they exist to
+缩小物体与域模型模型和
+the world of databases and relational algebra.
+
+((无知ign))
+机构风险管理使我们感到最重要的事情是per无知 -- -- 想法
+我们的 f域模型需要了解数据是如何存在的
+装载或坚持。 This helps keep our domain clean of direct dependencies
+on particular database technologies.footnote:[In this sense, using an ORM is
+已经是国际保护部的一个例子。 我们不取决于硬编码的SQL,而取决于
+on an abstraction, the ORM. 但是,这对于我们来说是不够的!
+
+((relobject-relational mappers (ORMs)", "SQLAlchemy, model depends on ORM")))
+((clarSQLAlchemyche,clardeclarative syntax, model depends on ORM"))
+But if you follow the typical SQLAlchemy tutorial, you youll end up with something
+例如:
+
+
+[[typical_sqlalchemy_example]]
+.SQLAlchemy clardeclarativeclar syntax, model depends on ORM (orm.py)
+====
+[role="skip"]
+[source,python]
+----
+from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
+
+Base = declarative_base()
+
+class Order(Base):
+    id = Column(Integer, primary_key=True)
+
+class OrderLine(Base):
+    id = Column(Integer, primary_key=True)
+    sku = Column(String(250))
+    qty = Integer(String(250))
+    order_id = Column(Integer, ForeignKey('order.id'))
+    order = relationship(Order)
+
+class Allocation(Base):
+    ...
+----
+====
+
+You dondont need to understand SQLAlchemy to see that our pristine model is now
+All of dependencies on the ORM and is starting to look ugly as hell besides.
+我们能否真正说这个模式对数据库无知? How can it be
+在我们的模式特性直接结合的情况下,与储存问题分开
+to database columns?
+
+[role="nobreakinside less_space"]
+.Djangogos ORM Is Essentially the Same, but More Restrictive
+****
+
+((DDjangogo, ORORM example"))
+((relobject-relational mappers (ORMs)", DDjango ORM example")))
+If you're more used to Django, the preceding "declarative S SQLAlchemy snippet
+转化成类似情况:
+
+[[django_orm_example]]
+.Django ORM实例
+====
+[source,python]
+[role="skip"]
+----
+class Order(models.Model):
+    pass
+
+class OrderLine(models.Model):
+    sku = models.CharField(max_length=255)
+    qty = models.IntegerField()
+    order = models.ForeignKey(Order)
+
+class Allocation(models.Model):
+    ...
+----
+====
+
+这是一个由机构风险管理直接继承的同级模式班
+课程,因此我们的模式取决于机构风险管理。 我们希望它成为另一个国家
+way around.
+
+Django doesn,t为SQLchemyches级地图绘制者提供同等服务,
+但是,关于如何适用受扶养人的例子,见<<appendix_django>>
+inversion and the 仓储（Repository） pattern to Django.
+
+****
+
+
+
+==== Inverting the Dependency: ORM Depends on Model
+
+((ma马)))
+((制图))
+((QSQLAlchemyche,"explicit ORM mapping with SQLAlchemy Table objects objects)))
+((独立转换原则,,ORORM取决于数据模型"))
+((dodomain model", transtranslating to relational database", ORORM depends on the model")))
+((relobject-relational mappers (ORMs)", ORORM depends on the data model")))
+Well, thankfully, that thats not the only way to use SQLAlchemy. The alternative is
+to define your schema separately, and to define an explicit  mapper  for how to convert
+SQLAlchemy在座标与我们域模型之间所说的话
+https://oreil.ly/ZucTG[classical mapping]:
+
+[role="nobreakinside less_space"]
+[[sqlalchemy_classical_mapper]]
+.Explicit ORM mapping with SQLAlchemy Table objects (orm.py)
+====
+[source,python]
+----
+from sqlalchemy.orm import mapper, relationship
+
+import model  #<1>
+
+
+metadata = MetaData()
+
+order_lines = Table(  #<2>
+    "order_lines",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("sku", String(255)),
+    Column("qty", Integer, nullable=False),
+    Column("orderid", String(255)),
+)
+
+...
+
+def start_mappers():
+    lines_mapper = mapper(model.OrderLine, order_lines)  #<3>
+----
+====
+
+O1RM 域模型的ORM进口(或now取决于now或nowknows aboutnow)和
+    not the other way around.
+
+Q2che 我们利用SQLAlchemy'来界定我们的数据库表和栏
+    abstractions.footnote:[Even in projects where we don't use an ORM, we
+    经常使用SQLAlchemy和Alembic一道,以明确的方式制造
+    schemas in Python and to manage migrations, connections,
+    and sessions.]
+
+Q3, When we call the `mapper` function, SQLAlchemy does its magic to bind
+    We domain model classes to the various tables we weve defined.
+
+// TODO: replace mapper() with registry.map_imperatively()
+// https://docs.sqlalchemy.org/en/14/orm/mapping_styles.html?highlight=sqlalchemy#orm-imperative-mapping
+
+最终结果将是,如果我们称之为`start_mappers`,我们将能够
+可轻易装载并从数据库中和向数据库存储域模型。 But
+我们从不称作这一职能,我们的域模型班保持iss。
+不知道数据库。
+
+// IDEA: add a note about mapper being maybe-deprecated, but link to
+// the mailing list post where mike shows how to reimplement it manually.
+
+这为我们提供了SQLAlchemy的所有好处,包括使用能力
+`alembic` for migrations, and the ability to transparently query using our
+如湿法所示,域级。
+
+((oobject-relational mappers (ORMs)", ORORM depends on the data model", testtesting the ORM")))
+When youRMre first trying to build your ORM config, it can be useful to write
+例如:
+
+
+[[orm_tests]]
+.直接测试 O管线(row道试验)(试验室/test)
+====
+[source,python]
+----
+def test_orderline_mapper_can_load_lines(session):  #<1>
+    session.execute(
+        "INSERT INTO order_lines (orderid, sku, qty) VALUES "
+        '("order1", "RED-CHAIR", 12),'
+        '("order1", "RED-TABLE", 13),'
+        '("order2", "BLUE-LIPSTICK", 14)'
+    )
+    expected = [
+        model.OrderLine("order1", "RED-CHAIR", 12),
+        model.OrderLine("order1", "RED-TABLE", 13),
+        model.OrderLine("order2", "BLUE-LIPSTICK", 14),
+    ]
+    assert session.query(model.OrderLine).all() == expected
+
+
+def test_orderline_mapper_can_save_lines(session):
+    new_line = model.OrderLine("order1", "DECORATIVE-WIDGET", 12)
+    session.add(new_line)
+    session.commit()
+
+    rows = list(session.execute('SELECT orderid, sku, qty FROM "order_lines"'))
+    assert rows == [("order1", "DECORATIVE-WIDGET", 12)]
+----
+====
+
+<1, 如果你已经使用了间test试验,`session`关于这种试验需要的论点
+    解释。 You dondont need to worry about the details of pytest or its
+    本书的固定装置,但简短的解释是:
+    你可以把你的试验的共同依赖性界定为ix酸ix, and
+    间test试验通过检查需要的试验进行
+    function arguments. 在这种情况下,它会举行SQLAlchemy数据库会议。
+    ((pypytesttest, sessionsession argument"))
+
+////
+[SG] I set up the conftest to have a session, and could only get the tests to
+I dropped the (frozen=True) on the OrderLine dataclass, otherwise I
+将获得数据分类。 FrozenInstanceError: cannot assign to field
+state sa instance statestate 我认为,我必须非常努力地继续前进;
+
+Is not spelling everything out a deliberate tactic to make the reader learn?
+////
+
+You probably wouldn,t keep these tests around-as youllll see shortly, once
+You itve taken the step of inverting the dependency of ORM and domain model, it its
+再采取一小小小步骤,执行另一次摘要,即:
+重复型态,这种模式将更易于根据和意愿进行测试
+提供简单的界面,供稍后进行测试。
+
+但是,我们已经实现了避免传统的目标
+受扶养人:域网模式停留在purpure",没有基础设施
+concerns. We could throw away SQLAlchemy and use a different ORM, or a totally
+不同的持久性系统以及域网模式需要改变
+all.
+
+
+取决于你在你的域模式中做些什么,特别是如果你在你的问题上
+远离OO模式,你可能发现越来越难以实现OO模式。
+ORM to produce the exact behavior you need, and you may need to modify your
+domain model.footnote:[Shout-out to the amazingly helpful SQLAlchemy
+维护者,特别是Mike Bayer。 ] As so often happen with
+建筑决定需要考虑权衡。 As
+Zen of Python says, "Practicality beats purity!"
+
+((SQLAlchemyche,直接在API端点using))
+然而,在这一点上,我们的 &quot; 反倾销倡议 &quot; 的终点也许会看一象一些东西。
+如下,我们可以得到公正的罚款:
+
+[[api_endpoint_with_session]]
+.Using SQLAlchemy directly in our API endpoint
+====
+[role="skip"]
+[source,python]
+----
+@flask.route.gubbins
+def allocate_endpoint():
+    session = start_session()
+
+    # extract order line from request
+    line = OrderLine(
+        request.json['orderid'],
+        request.json['sku'],
+        request.json['qty'],
+    )
+
+    # load all batches from the DB
+    batches = session.query(Batch).all()
+
+    # call our domain service
+    allocate(line, batches)
+
+    # save the allocation back to the database
+    session.commit()
+
+    return 201
+----
+====
+
+////
+[SG] from what I remember of the previous code if none of the batches can allocate then this
+分配(线、批量)将增加OfStock。 Is it OK to let this bubble up? 如果你的话
+增加最后结束届会的努力
+////
+
+=== 采用手术模式
+
+((Re仓储（Repository） pattern", id=Reix Repopo)))
+((dodomain model", startref="ix domod"))
+仓储（Repository）  pattern is an abstraction over persistent storage. It hides the
+预先假定我们的所有数据都是在记忆中,将数据存入细节。
+
+如果我们用pt上型电脑fin存了有限的记忆,我们就没有必要建立lum式数据库。
+相反,我们只能在我们喜欢的时候使用我们的物体。 What would that look
+是否?
+
+[[all_my_data]]
+.You have to get your data from somewhere
+====
+[role="skip"]
+[source,python]
+----
+import all_my_data
+
+def create_a_batch():
+    batch = Batch(...)
+    all_my_data.batches.add(batch)
+
+def modify_a_batch(batch_id, new_quantity):
+    batch = all_my_data.batches.get(batch_id)
+    batch.change_initial_quantity(new_quantity)
+
+----
+====
+
+
+即使我们的目标记忆犹新,我们仍需要把它们放在一些地方,以便我们能够做到
+他们再次发现。 我们的理论数据将让我们增加新的目标,就像一个新目标一样。
+清单或一套。 由于这些物体是记忆中的,我们从未需要呼声
+`.save()`法;我们只是想起我们所关心的目标,并用记忆加以修改。
+
+
+==== 摘录
+
+((Re 仓储（Repository） pattern", simsimplest possible Library")))
+((工作模式单位))
+最简单的储存库只有两种方法:`add()`将一个新项目列入其中。
+storage, and `get()` to return a previously added item.footnote:[
+You may be thinking, "What about `list` or `delete` or `update`?" However, in an
+理想世界,我们一时修改我们的示范目标,删除。
+通常处理为软性柴油,即`batch.cancel()`。 最后,正在更新
+如<<chapter_06_uow>>所示,由工作模式股负责。 ]
+我们严格地利用这些方法获取我们领域和我们的数据。
+服务层。 这种自成一体的简单化使我们无法 coup合我们的领域
+数据库模型。
+
+(( repositoryabstract base classes (ABCs)", "ABC for the Library")))
+在这方面,我们储存库的抽象基础类别(ABC)将看似:
+
+[[abstract_repo]]
+.最简单的存储处(复印件)
+====
+[source,python]
+----
+class AbstractRepository(abc.ABC):
+    @abc.abstractmethod  #<1>
+    def add(self, batch: model.Batch):
+        raise NotImplementedError  #<2>
+
+    @abc.abstractmethod
+    def get(self, reference) -> model.Batch:
+        raise NotImplementedError
+----
+====
+
+
+P1 P Python tip: `@abc.abstractmethod` is one of the only things that makes
+    ABCs actually workwork" in Python. Python将拒绝让你证实。
+    a class that does not implement all the `abstractmethods` defined in its
+    parent class.footnote:[ To really reap the benefits of ABCs (such as they
+    可能是`pylint`和`mypy`等自助器。 ]
+    (("@abc.abstractmethod"))
+    ((适用方法))
+
+P2 P`raise NotImplementedError`是 n,但既不必要,也不足够。
+    事实上,你的抽象方法可以具有次级的真正行为。
+    如果你真正想要的话,可以不停地发言。
+
+[role="pagebreak-before less_space"]
+.Abstract Base Classes, Duck Typing, and Protocols
+*******************************************************************************
+
+((ababstract base classes (ABCs)", usingusing duck typing and protocols instead of"))
+((proprotocols, abstract base classes, duck typing, and and)))
+We Were using abstract base classes in this book for didactic reasons: we hope
+它们有助于解释存储处抽象的界面。
+
+(( typduck typing"))
+In real life, we weve sometimes found themselves deleting ABCs from our production
+守则,因为Python使忽视这些规则变得太容易,而且最终导致
+不维护,最糟.的是误导。 实际上,我们往往只是依靠
+Python's duck typing to enable abstractions. To a Pythonista, a Library is
+any  object that has pass:[cocodecoadd(emem>thing</em>)</code>] and pass:[cocodegeget(emem>id</em>)</codeco] methods.
+
+((PPEP 544 protocols protocols))
+An alternative to look into is https://oreil.ly/q9EPC[PEP 544 protocols].
+这使你在没有继承权的情况下被打字。
+f  f ans fans will particularly like.
+
+*******************************************************************************
+
+
+==== 贸易效率如何?
+
+
+[quote, Rich Hickey]
+____
+You know they say economists know the price of everything and the value of
+无? Well, programmers know the benefits of everything and the trade-offs
+无。
+____
+
+((Re仓储（Repository） pattern", tradetrade-offs")))
+每当我们在这本书中采用建筑模式时,就总是会有损益。
+问,我们怎么做? 它给我们带来什么代价?
+
+通常,至少,我们会引入一种额外的抽象层,
+而且,虽然我们可能希望它能全面减少复杂性,但它的确增加了。
+当地的复杂性,从移动部分的原始数量和流动部分的原数来看,成本
+持续维修。
+
+存储模式可能是该书中最容易的选择之一,但
+如果你已经走在DDD和受扶养人换代的路上。 迄今
+正如我们守则所关切的那样,我们确实只是apping了SQLAlchemy抽象。
+(`session.query(Batch)`)为我们不同的(`batches_repo.get`)
+designed.
+
+我们必须每一次在我们储存库中写好几条守则。
+增加我们想要检索的新领域目标,但反过来,我们就有了新的领域目标。
+简单地抽象我们控制下的储存层。 储存模式将使
+很容易对我们储存物资的方式作出根本性改变(见
+<<appendix_csvs>>),而且正如我们所看到的那样,很容易破灭进行单位测试。
+
+((Redomain driven design (DDD)", Re仓储（Repository） pattern and"))
+此外,在DDD世界中,存储模式非常常见,如果你的话
+确实与来自Java和C#的Python方案人员合作
+世界可能认识到这一点。 <<repository_pattern_diagram>>显示了这一模式。
+
+[role="width-60"]
+[[repository_pattern_diagram]]
+.储存模式
+image::images/apwp_0205.png[]
+[role="image-source"]
+----
+[ditaa, apwp_0205]
+  +-----------------------------+
+  |      Application Layer      |
+  +-----------------------------+
+                 |^
+                 ||          /------------------\
+                 ||----------|   Domain Model   |
+                 ||          |      Objects     |
+                 ||          \------------------/
+                 V|
+  +------------------------------+
+  |          Repository          |
+  +------------------------------+
+                 |
+                 V
+  +------------------------------+
+  |        Database Layer        |
+  +------------------------------+
+----
+
+
+((Re仓储（Repository） pattern", testtest the Library with saving an object")))
+((SQL", reprepository test for saving an object")))
+我们一如既往地开始试验。 这可能被归类为
+Integration test, since we were checking that our code (the Library) is
+正确地与数据库合并;因此,测试往往混合
+用我们自己的代码打电话和断言。
+
+TIP:与先前的ORM测试不同,这些测试是良好候选人
+    长期保持部分代码,特别是
+    你的域网模式意味着与物体有关的地图是非部落图。
+
+
+[[repo_test_save]]
+.仓储（Repository） test for saving an object (test repository.py)
+====
+[source,python]
+----
+def test_repository_can_save_a_batch(session):
+    batch = model.Batch("batch1", "RUSTY-SOAPDISH", 100, eta=None)
+
+    repo = repository.SqlAlchemyRepository(session)
+    repo.add(batch)  #<1>
+    session.commit()  #<2>
+
+    rows = session.execute(  #<3>
+        'SELECT reference, sku, _purchased_quantity, eta FROM "batches"'
+    )
+    assert list(rows) == [("batch1", "RUSTY-SOAPDISH", 100, None)]
+----
+====
+
+P1 P `repo.add()` is the method under test here.
+
+repository2> 我们把`.commit()`留在存放处外,并进行
+    It the responsibility of the caller. 赞成和赞同
+    这一点;我们的一些理由在我们实现时将更加明确
+    <<chapter_06_uow>>.
+
+<3. We use the raw SQL to verify that the right data has been saved.
+
+((SQL",reprepository test for retrieving complex object")))
+((Re 仓储（Repository） pattern pattern, testtesting the Library with retrieving a complex object")))
+下一次测试涉及回收批量和拨款,因此
+复杂:
+
+
+[[repo_test_retrieve]]
+.仓储（Repository） test for retrieving a complex object (test repository.py)
+====
+[source,python]
+----
+def insert_order_line(session):
+    session.execute(  #<1>
+        "INSERT INTO order_lines (orderid, sku, qty)"
+        ' VALUES ("order1", "GENERIC-SOFA", 12)'
+    )
+    [[orderline_id]] = session.execute(
+        "SELECT id FROM order_lines WHERE orderid=:orderid AND sku=:sku",
+        dict(orderid="order1", sku="GENERIC-SOFA"),
+    )
+    return orderline_id
+
+
+def insert_batch(session, batch_id):  #<2>
+    ...
+
+def test_repository_can_retrieve_a_batch_with_allocations(session):
+    orderline_id = insert_order_line(session)
+    batch1_id = insert_batch(session, "batch1")
+    insert_batch(session, "batch2")
+    insert_allocation(session, orderline_id, batch1_id)  #<2>
+
+    repo = repository.SqlAlchemyRepository(session)
+    retrieved = repo.get("batch1")
+
+    expected = model.Batch("batch1", "GENERIC-SOFA", 100, eta=None)
+    assert retrieved == expected  # Batch.__eq__ only compares reference  #<3>
+    assert retrieved.sku == expected.sku  #<4>
+    assert retrieved._purchased_quantity == expected._purchased_quantity
+    assert retrieved._allocations == {  #<4>
+        model.OrderLine("order1", "GENERIC-SOFA", 12),
+    }
+----
+====
+
+
+Q1, 试验方,因此,原SQL正在准备数据,以便阅读
+    by the `repo.get()`.
+
+We2 We We'll spare you the details of `insert_batch` and `insert_allocation`;
+    其要点是建立两bat,
+    batch we.re interested in, to have one existing order line allocated to it.
+
+<3 And And that thats what we verify here. The first `assert ==` checks that the
+    Type match, and that the reference is the same (because, as you remember,
+    `Batch` is an entity, and we have a custom ++__eq__++ for it.
+
+<4> 因此,我们也明确检查其主要特征,包括
+    `._allocations`,这是一套`OrderLine`值物体。
+
+((Re 仓储（Repository） pattern", tytypical Library repository)))
+你是否为每种模式认真写作测试是一项判断
+呼吁。 Once you have one class tested for create/modify/save, you might be
+乐意前往他人,进行最低限度的圆程试验,甚至根本没有
+总的说来,如果它们都采用类似的模式。 In our case, the ORM config
+设立`._allocations`装置是个很小的复杂设施,因此值得采用
+具体测试。
+
+
+You end up with something like this:
+
+
+[[batch_repository]]
+.典型的存储处(复印件)
+====
+[source,python]
+----
+class SqlAlchemyRepository(AbstractRepository):
+    def __init__(self, session):
+        self.session = session
+
+    def add(self, batch):
+        self.session.add(batch)
+
+    def get(self, reference):
+        return self.session.query(model.Batch).filter_by(reference=reference).one()
+
+    def list(self):
+        return self.session.query(model.Batch).all()
+----
+====
+
+
+((FFlask framework", "API endpointpoint))
+((Re仓储（Repository） pattern pattern, "using storage directly in API endpointpoint)))
+((PIAPIsPI, usingusing store directly in API endpointpoint))
+现在,我们的弗拉斯克终点可以看一看一些东西,如:
+
+[[api_endpoint_with_repo]]
+.直接利用我们的储存库
+====
+[role="skip"]
+[source,python]
+----
+@flask.route.gubbins
+def allocate_endpoint():
+    batches = SqlAlchemyRepository.list()
+    lines = [
+        OrderLine(l['orderid'], l['sku'], l['qty'])
+         for l in request.params...
+    ]
+    allocate(lines, batches)
+    session.commit()
+    return 201
+----
+====
+
+[role="nobreakinside less_space"]
+.退休人员的行使
+******************************************************************************
+
+((QSQL",ORORM and 仓储（Repository） pattern as abstractions in front of abstract))
+((Re 仓储（Repository） pattern", ORORMs and and)))
+((Reobject-relational mappers (ORMs)", Re仓储（Repository） pattern and")))
+We bumped into a friend at a DDD conference the other day who said, "I haven havet
+在10年内使用ORM。 储存模式和 &quot; 审调机制 &quot; 都充当抽象
+in front of raw SQL, so using one behind the other isnnt really necessary. Why
+在不使用 &quot; 机构风险管理 &quot; 的情况下,没有执行我们的储存?
+Youllll find the code https://github.com/cosmicpython/code/tree/chapter_02_repository_exercise[on GitHub].
+
+We Weve left the Library tests, but figuring out what SQL to write is up
+to you. 也许比你更难想象;也许更容易。
+但ice是,你的其余申请只是 does。
+
+******************************************************************************
+
+
+=== Building a Fake 仓储（Repository） for Tests Is Now Trivial!
+
+((Re仓储（Repository） pattern", buildingbuilding fake Library for tests")))
+((setset, fake Library as wrapper around")))
+这里是存储模式的最大好处之一:
+
+
+[[fake_repository]]
+.使用一套(复印件)的简单的法库
+====
+[role="skip"]
+[source,python]
+----
+class FakeRepository(AbstractRepository):
+
+    def __init__(self, batches):
+        self._batches = set(batches)
+
+    def add(self, batch):
+        self._batches.add(batch)
+
+    def get(self, reference):
+        return next(b for b in self._batches if b.reference == reference)
+
+    def list(self):
+        return list(self._batches)
+----
+====
+
+Because it its a simple wrapper around a `set`, all the methods are one-liners.
+
+在试验中使用假肢确实容易,我们有一个简单的东西。
+易于使用的摘要及其理由:
+
+[[fake_repository_example]]
+.使用假存储器(测试/复印件)
+====
+[role="skip"]
+[source,python]
+----
+fake_repo = FakeRepository([batch1, batch2, batch3])
+----
+====
+
+You.ll see this fake in action in the next chapter.
+
+
+TIP: Building fakes for your abstractions is an excellent way to get design
+    反馈:如果难以脱钩,抽象也许太过。
+    复杂。
+
+
+[[what_is_a_port_and_what_is_an_adapter]]
+=== What Is a Port and What Is an Adapter, in Python?
+
+((portports", defined defineddefined))
+((adaadapters", defined defineddefined))
+我们don想在这里过多地谈一谈术语,因为主要问题
+我们希望把重点放在依赖性转换和具体特点上
+technique you use dondont matter too much. 此外,我们也意识到不同之处
+人们使用的定义略有不同。
+
+Ports and adapters came out of the OO world, and the definition we hold onto
+port  is the  interface  between our application and whatever
+我们希望抽象,而 &quot; 达普特 &quot; 是 &quot; 执行 &quot; 。
+该接口或抽象之后。
+
+((interinterfaces, Python and and))
+(( typduck typing", "for ports"))
+((ababstract base classes (ABCs)", usingusing for ports")))
+现在,Python doesn doest本身就有接口,但通常很容易。
+确定适应者,对港口进行界定可能更为困难。 If you anre using an
+abstract base class, that thats the port. 如果不是,港口就只是 du的型号。
+That your adapters conform to and that your core application expects -the
+使用的职能和方法名称及其论点名称和类型。
+
+具体地说,在本章中,`Abstract仓储（Repository）`是港口,
+`SqlAlchemy仓储（Repository）`和`Fake仓储（Repository）`是适应器。
+
+
+
+=== Wrap-Up
+
+((Re 仓储（Repository） pattern", "and persistence ignorance, trade-offs")))
+((perpersistence ignorance", tradetrade-offs")))
+铭记Rich Hickey在每一章中都引用了这一观点,
+总结我们提出的每个建筑模式的成本和效益。
+我们想清楚地表明,我们不说每一个应用需要
+to be built this way; only sometimes does the complexity of the app and domain
+值得投入时间和精力,以增加这些额外层次
+间接。
+
+有鉴于此,<<chapter_02_repository_tradeoffs>>显示
+Some of the pros and cons of the 仓储（Repository） pattern and our persistence-ignorant
+模式。
+
+////
+[SG] is it worth mentioning that the storage is specifically intended for add and get
+of our domain model objects, rather than something used to add and get any old data
+你可以称之为DAO。 重复性更接近商业领域。
+////
+
+[[chapter_02_repository_tradeoffs]]
+[options="header"]
+.再现模式和 persistence固无知:
+|===
+ProProsConCons
+a a
+* We have a simple interface between persistent storage and our domain model.
+
+* 容易为单位测试提供 repository软版本的存储处,或
+  swap out different storage solutions, because we weve fully decoupled the model
+  from infrastructure concerns.
+
+* 在思考持久性之前制定域模型,有助于我们集中精力
+  the business problem at hand. 如果我们想彻底改变我们的做法,
+  我们可以在我们的模式中这样做,而不必担心外国 key。
+  or migrations until later.
+
+* 我们的数据库奇che实际上是简单的,因为我们完全控制了我们的数据库。
+  How we map our objects to tables.
+
+a a
+* An ORM already buys you some decoupling. 改变外国 key可能很困难,
+  但是,如果你的话,在我北克拉和邮政协定之间进行交换是很好的。
+  现在需要。
+
+////
+[KP] I always found this benefit of ORMs rather weak. In the rare cases when I
+实际需要转用DB引s,因此,支付额足以证明有些人有理由这样做
+其他工作。 Also, if you are using "interesting D DB features (say: special
+Postgres fields) you usually lose the portability.
+////
+
+
+* Maintaining ORM mappings by hand requires extra work and extra code.
+
+* 任何外层间接总是增加维修费用和
+  Increase a WWTF factor" for Python programmers who've never seen the 仓储（Repository） pattern
+  before.
+|===
+
+<<domain_model_tradeoffs_diagram>>显示基本原体:是,简单
+O密的域模型比单纯的 O管/活性Act线更难工作
+pattern.footnote:[Diagram inspired by a post called
+https://oreil.ly/fQXkP["Global Complexity, Local Simplicity"] by Rob Vens.]
+
+TIP: If your app is just a simple CRUD (create-read-update-delete) wrapper
+    然后,在数据库中,你们需要一个域模型或一个储存库。
+
+((dodomain model", tradetrade-offs as a diagramgram)))
+((VVens, Robens))
+((( &quot; 全球复杂性 &quot; 、 &quot; 地方简单 &quot; 、 &quot; 主角 &quot; )))
+但是,这个领域越复杂,解放投资越多
+你自己在基础设施方面将得到好处。
+making changes.
+
+
+[[domain_model_tradeoffs_diagram]]
+.Domain model trade-off as a diagram
+image::images/apwp_0206.png[]
+
+
+Our example code isn complext complex enough to give more than a hint of what
+The right-hand side of the graph looks like, but the hints are there.
+例如,如果我们决定一天我们想要改变分配额,那么想象
+to live on the `OrderLine` instead of on the `Batch` object: if we were using
+Django, say, we wed have to define and think through the database migration
+在我们能够进行任何试验之前。 As it is, because our model is just plain
+旧的平原物体,我们可以改变`set()`,使之成为一种新的属性,而不必这样做。
+需要考虑数据库,直到以后。
+
+[role="nobreakinside"]
+.仓储（Repository） Pattern Recap
+*****************************************************************
+Apply dependency inversion to your ORM:
+    我们的域网模式不应涉及基础设施问题,
+    因此,贵机构应当进口你的模式,而不是另一种方式
+    around.
+    ((Re 仓储（Repository） pattern", "recap of important points")))
+
+The 仓储（Repository） pattern is a simple abstraction around permanent storage:
+    存储处给你以me想收藏的记忆
+    物体。 It makes it easy to create a `Fake仓储（Repository）` for
+    测试和交换你的基本细节
+    infrastructure without disrupting your core application. 见
+    例如,<<appendix_csvs>>。
+*****************************************************************
+
+Youllll be wondering, how do we instantiate these repositories, fake or
+现实吗? What will our Flask app actually look like? Youllll find out in the next
+精密安装,<<chapter_04_service_layer,the 服务层（Service Layer） pattern>>。
+
+但首先,短暂的倒退。
+((Re仓储（Repository） pattern", startref=Reix Repopo)))

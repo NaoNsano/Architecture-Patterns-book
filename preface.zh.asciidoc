@@ -1,0 +1,359 @@
+[[preface]]
+[preface]
+== 前言
+
+你也许很想知道我们是谁,为什么我们写了这本书。
+
+At the end of Harryrys last book,
+http://www.obeythetestinggoat.com[_Test-Driven Development with Python ] (OReReilly),
+He found himself asking a bunch of questions about structures, such as,
+Whattrus the best way of structuring your application so that it's easy to test?
+More specifically, so that your core business logic is covered by unit tests,
+and so that you minimize the number of integration and end-to-end tests you need?
+He made vague references to "Hexagonal Architectureture and PPorts and Adapters"
+and FFunctional Core, Imperative Shell," but if he was sincere, he'd have to
+承认这些是他真正理解的事物或实际上已经做到的事。
+
+And then he was lucky enough to run into Bob, who has the answers to all these
+问题。
+
+Bob ended up as a software architect because nobody else on his team was
+这样做。 He turned out to be pretty bad at it, but  he  was lucky enough to run
+into Ian Cooper, who taught him new ways of writing and thinking about code.
+
+=== Managing Complexity, Solving Business Problems
+
+We both work for MADE.com, a European ecommerce company that sells furniture
+在网上;我们利用本书中的技术建立分布式系统
+这一模式是现实世界商业问题。 我们的范例是第一个系统
+Bob built for MADE, and this book is an attempt to write down all the  stuff  we
+在参加我们的一个小组时,必须教授新的方案人员。
+
+MADE.com经营着全球货运伙伴和制造商供应链。
+为了降低成本,我们努力优化向我们提供库存
+warehouses so that we dondont have unsold goods lying around the place.
+
+Ideally, the sofa that you want to buy will arrive in port on the very day
+That you decide to buy it, and wellll ship it straight to your house without
+不断stor藏它。 [. 全盘] #Getting# the timing right is a tricky  balanced act when goods take
+3个月以集装箱船抵达。 Along the way, things get broken or water
+风暴损坏,造成意外延误,后勤伙伴盗用货物,
+缺纸工作,顾客改变自己的心态并修改其命令,
+and so on.
+
+We solve those problems by building intelligent software representing the
+在现实世界进行的各类行动,以便我们能够实现自动化
+尽可能多的企业。
+
+=== Why Python?
+
+如果你阅读这本书,我们也许需要说服你:
+这是一个巨大的问题,因为真正的问题就是为什么 Python 社区需要一本书
+like this?" The answer is about Pythonons popularity and maturity: although Python is
+也许世界最快的方案拟订语言接近顶级
+在绝对受欢迎的表格中,它只是在开始进行这种活动。
+of problems that the C# and Java world has been working on for years.
+起步成为真正的企业;网络应用程序和手提自动化正在变得日益成熟
+企业      .................... # software #.
+
+在平原世界,我们经常引用平顿的 Z:
+foThere should be one- and preferably only one-obvious way to do it.fofootnote:[`python -c "import this"`]
+不幸的是,随着项目规模的扩大,最明显的方式是做事情
+始终是帮助你管理复杂和不断变化的方式
+所需资源。
+
+我们在本书中讨论的技术和模式无一
+新的,但它们大多对平原世界来说是新的。 这本书已经出版
+a 取代Eric Evansss等领域的班级
+Domain-Driven Design 
+or Martin Fowler's  Patterns of
+Enterprise Application Architecture  (both published by Addison-Wesley [.keep-together]#Professional#) - which we often refer to and
+Encourage you to go and read.
+
+But all the classic code examples in the literature do tend to be written in
+Java or pass:[<span class=kekeep-together">C+/#</span>] and if you're a Python person and haven't used either of
+这些语文在很长时间内(或确实在任何时候)可以列入这些编码清单。
+quite...trying. 原因有该类其他文本,Fowler's
+Refactoring  (Addison-Wesley Professional), is in JavaScript.
+
+[role="pagebreak-before less_space"]
+=== TDD, DDD, and Event-Driven Architecture
+
+为了不合理,我们知道管理复杂性的三个工具:
+
+1. Test-driven development  (TDD) helps us to build code that is correct
+   使我们能够重新制造或增加新的特征,而不必担心倒退。
+   但是,很难从我们的试验中找到最好的东西: 我们如何确保
+   that they run as fast as possible? 我们获得的覆盖面和反馈也很多
+   从快速、无依附的单位测试中得出,最低速度较慢,
+   检测到端到端的程度不高?
+
+2. Domain-driven design  (DDD) asks us to focus our efforts on building a good
+   商业领域模式,但我们如何确保我们的模式不受损害
+   处理基础设施关切和捐赠的担保难以改变?
+
+3. 通过电文(有时称呼)整合的模拟服务
+   reactive microservices ) are a well-established answer to managing complexity
+   across multiple applications or business domains. 但并非总是这样。
+   显然如何使其与既定工具相适应
+   the Python world-Flask, Django, Celery, and so on.
+
+NOTE: Don't be put off if you.re not working with (or interested in) microservices.
+    我们讨论的绝大多数模式,
+    包括许多由活动驱动的架构材料,
+    绝对适用于单一结构。
+
+我们本书的目的是采用几种传统的建筑模式
+and show how they support TDD, DDD, and event-driven services. 我们希望
+它将作为以务实的方式加以执行的参考,
+人们可以把它作为在这一领域进一步研究的第一步。
+
+
+=== 阅读本书的人
+
+在这里,我们就你们所假定的几句话:
+
+* You.ve接近一些合理的复杂的Python应用程序。
+
+* You've saw some of the pain that comes with trying to manage
+  这种复杂性。
+
+* You dondont necessarily know anything about DDD or any of the
+  传统的应用结构模式。
+
+We structure our explorations of architectural patterns around an example app,
+按章次编排。 We use TDD at
+因此,我们往往先列出测试清单,然后再执行。
+If you,re not used to working test-first, it may feel a little strange at
+一开始,但我们希望你很快就能够看到使用代码being福利"
+(i.e. from the outside) before you see how it its built on the inside.
+
+We use some specific Python frameworks and technologies, including Flask,
+SQLAlchemy, and pytest, as well as Docker and Redis. If you're already
+我们熟悉他们,这给他们带来伤害,但我们认为需要这样做。 One of
+我们本书的主要目的是建立一个具体针对的架构。
+技术选择成为微不足道的执行细节。
+
+=== A Brief Overview of What Youllll Learn
+
+这本书分为两部分;在这里,要看我们所覆盖的专题。
+and the chapters they live in.
+
+==== :a data-type="xref" data-xrefstyle=hapchap-num-title" href=##part1##part1part/a>]
+
+Domain modeling and DDD (Chapters <<chapter_01_domain_model,1>>, <<chapter_02_repository,2>> and <<chapter_07_aggregate,7>>):
+    At some level, everyone has learned the lesson that complex business
+    问题需要以领域模式的形式反映在守则中。
+    But why does it always seem to be so hard to do without getting tangled
+    up with infrastructure concerns, our web frameworks, or whatever else?
+    在第一章中,我们概括介绍了 &quot; 主要模式 &quot; 和 &quot; DDD &quot; 。
+    说明如何开始采用一种没有外部依赖性的模型,
+    快速单位测试。 后来,我们回到DDD模式,讨论如何选择
+    正确的总量,以及这一选择如何与数据问题有关
+    integrity.
+
+仓储（Repository）, 服务层（Service Layer）, and 工作单元（Unit of Work） patterns (Chapters <<chapter_02_repository,2>>, <<chapter_04_service_layer,4>>, and <<chapter_05_high_gear_low_gear,5>>):
+    在这三章中,我们提出了三个密切相关的章节。
+    支持我们保持决心的相辅相成模式
+    the model free of extraneous dependencies. We build a layer of
+    abstraction around persistent storage, and we build a service
+    界定我们制度切入点和捕 the
+    主要用途案件。 We show how this layer makes it easy to build
+    thin entrypoints to our system, whether itLIs a Flask API or a CLI.
+
+// [SG] Bit of pedantry - this is the first time you have used CLI acronym,
+// should be spelled out?
+
+关于测试和抽象的一些想法(第<<chapter_03_abstractions,3>>和<<chapter_05_high_gear_low_gear,5>>章):
+    在提出第一次抽象(储存模式)之后,我们采取了行动
+    关于如何选择摘要的一般性讨论的机会;
+    他们的作用是选择如何将我们的软件结合起来。 After
+    我们引入了 &quot; 服务层 &quot; 模式,谈论的是实现 &quot; 试验金字塔 &quot; 。
+    and writing unit tests at the highest possible level of abstraction.
+
+
+
+==== :a data-type="xref" data-xrefstyle=hapchap-num-title" href=##part2##part2part/a>]
+
+Event-driven architecture (Chapters <<chapter_08_events_and_message_bus,8>>-<<chapter_11_external_events,11>>):
+    我们采用了三个相辅相成的模式:
+    the Domain Events, 消息总线（Message Bus）, and Handler patterns.
+    Domain events  are a vehicle for capturing the idea that
+    一些与系统的互动会触发他人。
+    We use a  message bus  to allow actions to trigger events
+    and call appropriate  handlers .
+    我们着手讨论如何将事件作为模式
+    for integration between services in a microservices architecture.
+    最后,我们区分了 commands 和 events 。
+    我们的应用现在基本上是一个信息处理系统。
+
+指挥责任分离(<<chapter_12_cqrs>>):
+    We present an example of  command-query responsibility segregation ,
+    with and without events.
+
+依附注射(<<chapter_13_dependency_injection>>):
+    We tidy up our explicit and implicit dependencies and implement a
+    simple dependency injection framework.
+
+
+==== 其他内容
+
+How do I get there from here? (<<epilogue_1_how_to_get_there_from_here>>):
+    如果你展示简单的建筑模式,那么实施建筑模式总是很容易。
+    例如,从零起就开始,但你们中许多人可能会想到如何。
+    to apply these principles to existing software. Wellll provide a
+    ep网点数很少,与进一步阅读有某种联系。
+
+
+
+=== Example Code and Coding Along
+
+You,re reading a book, but youllll probably agree with us when we say that
+了解守则的最佳方式是守则。 我们学习了我们所知的多数东西
+学习与人对比,与他们写作代码,学习;
+我们想在这本书中尽可能地重新阐述这一经验。
+
+As a result, we weve structured the book around a single example project
+(尽管我们有时在其他例子中投).)。 随着各章的进展,如你与我们一道努力,我们就将建设这一项目。
+We were explaining what we.re doing and why at each step.
+
+但是,为了真正掌握这些模式,你们需要向大家通报。
+code and get a feel for how it works. Youllll find all the code on
+GitHub; Each chapter has its own branch. You can find https://github.com/cosmicpython/code/branches/all[a list] of the branches on GitHub as well.
+
+[role="pagebreak-before"]
+你可以用三种方式与该书一并编码:
+
+* Start your own repo and try to build up the app as we do, following the
+  Examples from listings in the book, and occasionally looking to our repo
+  for hints. 然而,警告词:如果你将以前的书写成Harry's
+  你认为,这本书要求你在上课更多。
+  你自己;你可能需要对吉特胡布工作版本征收大量税款。
+
+* Try to apply each pattern, chapter by chapter, to your own (preferably
+  Small/toy) project, and see if you can make it work for your use case. This
+  风险高/回报高(除了高努力外! )。 可能有的
+  Work to get things working for the specifics of your project, but on the other
+  hand, you.re likely to learn the most.
+
+* 就较少的努力而言,在每一章中,我们都勾画出 &quot; 退休者 &quot; ,,
+  and point you to a GitHub location where you can download some partially finished
+  此章的编码,其中有几个缺失部分来写。
+
+尤其是如果你打算自行适用其中一些模式
+projects, working through a simple example is a great way to
+安全的做法。
+
+TIP: At the very least, do a `git checkout` of the code from our repo as you
+    改为每一章。 能够在守则范围内 ju和看到守则
+    实际工作附录将有助于回答你面临的许多问题,
+    使一切更加现实。 Youllll find instructions for how to do that
+    在每一章开头。
+
+
+=== License
+
+The code (and the online version of the book) is licensed under a Creative
+Coms CC by-NC-ND license, which means you are free to copy and share it with
+只要你给予归属,你就出于非商业目的。
+If you want to re-use any of the content from this book and you have any
+worries about the license, contact OReReilly at pass:[<a class="email"
+href=mailmailto:permissions@oreilly.comememperpermissions@oreilly.com</em></a>].
+
+印刷版的许可证不同;请见版权页。
+
+
+=== 本文使用的公约
+
+本书中使用了下列分类公约:
+
+Italic : Indicates new terms, URLs, email addresses, filenames, and file extensions.
+
++Constant width+:用于方案清单,以及在段落中提及变量或功能名称、数据库、数据类型、环境变量、报表和关键词等方案要素。
+
+**`Constant width bold`**: Shows commands or other text that should be typed literally by the user.
+
+++Constant width italic++ : 应以用户供给值或根据背景确定的价值取代的how。
+
+
+[TIP]
+====
+这一要素意味着一条规则或建议。
+====
+
+[NOTE]
+====
+这一要素是一份一般性说明。
+====
+
+[WARNING]
+====
+这一内容表明有警告或警告。
+====
+
+=== 在线学习
+
+[role = "ormenabled"]
+[NOTE]
+====
+For more than 40 years, pass:[<a href=Phttp://oreilly.com" class="orm:hideurl"><em class="hyperlink"> O &apos; Reilly Media Media/em></a.]提供了技术和商业培训、知识和见解,以帮助公司取得成功。
+====
+
+我们独特的专家和创新者网络通过书籍、文章、会议和我们的在线学习平台分享其知识和专长。 O &apos; Reilly &apos; s online learning platform gives you on-demand access to live training courses, in-depth learning paths, interactive coding environments, and a vast collection of text and video from OReReilly and 200+ other publishers. For more information, please visit pass:[<a href=Phttp://oreilly.com" class="orm:hideurl"> emem http://oreilly.com</em></a>].
+
+=== How to Contact OReReilly
+
+请向出版商介绍有关该书的评论和问题:
+
+++++
+ulul class=simsimplelist">
+  OliOO’Reilly Media, Inc. Inc/li>
+  Grali>1005 Gravenstein Highway North</li>
+  Cli>Sebastopol, CA 95472</li>
+  <li>800-998-9938 (美国或加拿大))/li>
+  lili>707-829-0515(国际或当地))/
+  <li>707-829-0104 (fax)</li>
+//ul>
+++++
+
+我们有一本书的网页,其中我们列出了不稳定、实例和任何其他资料。 You can access this page at https://oreil.ly/architecture-patterns-python[].
+
+++++
+ge!-Don't forget to update the link above.->
+++++
+
+Email pass:[<a class= classemail" href=mailmailto:bookquestions@oreilly.comemembookbookquestions@oreilly.com</em></a>] to comment or ask technical questions about this book.
+
+关于我们的书籍、课程、会议和新闻的更多信息,见我们的网站链接:$http://www.oreilly.com$$[].
+
+Find us on Facebook: link:$http://facebook.com/oreilly$$[]
+
+Follow us on Twitter: link:$http://twitter.com/oreillymedia$$[]X
+
+Watch us on YouTube: link:$http://www.youtube.com/oreillymedia$$[]
+
+=== now章
+
+To our tech reviewers, David Seddon, Ed Jung, and Hynek Schlawack: we absolutely
+不值得你们。 You are all incredibly dedicated, conscientious, and
+rigorous. Each one of you is tremendously smart, and your different points of
+意见是有益的,相辅相成的。 谢谢你
+bottom of our hearts.
+
+也向我们迄今所有读者表示感谢,感谢他们的意见和评论
+建议:
+Ian Cooper, Abdullah Ariff, Jonathan Meier, Gil Gonçalves, Matthieu Choplin,
+Ben Judson, James Gregory, Łukasz Lechowicz, Clinton Roy, Vitorino Araújo,
+Susan Goodbody, Josh Harwood, Daniel Butler, Liu Haibin, Jimmy Davies, Ignacio
+Vergara Kausel, Gaia Canestrani, Renne Rocha, pedroabi, Ashia Zawaduk, Jostein
+Leira, Brandon Rhodes, Jazeps Basko, simkimsia, Adrien Brunet, Sergey Nosko,
+Dmitry Bychkov, dayres2, programmer-ke, asjhita, Filip Lajszczak,
+此外,如果我们错过了名单上的各位,我们也抱.。
+
+Super-mega-thanks to our editor Corbin Collins for his gentle chivvying, and
+坚持不懈地倡导读者。 Similarly-superlative
+the production staff, Katherine Tozer, Sharon Wilkey, Ellen Troutman-Zaig, and
+Rebecca Demarest, for your dedication, professionalism, and attention to
+详细情况。 由于你,这本书得到极大的改进。
+
+这本书中留下的任何错误都是我们自己,自然也是我们自己。

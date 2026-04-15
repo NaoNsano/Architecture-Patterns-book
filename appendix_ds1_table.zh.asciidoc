@@ -1,0 +1,59 @@
+[[appendix_ds1_table]]
+[appendix]
+== 图表
+
+((建筑、地图和表,、id=archix archsummsum))
+在此,我们的结构在书结尾处所展望:
+
+[[recap_diagram]]
+image::images/apwp_aa01.png["diagram showing all components: flask+eventconsumer, service layer, adapters, domain etc"]
+
+<<ds1_table>>再填充每种模式及其作用。
+
+[[ds1_table]]
+.The components of our structures and what they all do
+[cols="1,1,2"]
+|===
+Component Layer  Component Component  Component Description
+
+.5+a| *Domain*
+
+ Defines the business logic. 
+
+
+Entity 实体 Entity A domain object whose attributes may change but that has a recognizable identity over time.
+
+Value 价值目标 object An immutable domain object whose attributes entirely define it. 与其他相同物体隔绝。
+
+gre 为数据变化的目的,我们作为单位处理的连类相关物体。 Defines and enforces a consistency boundary.
+
+Event Event  Event represented something that happened.
+
+命令（Command） 命令（Command）  命令（Command） 系系统应履行的工作。
+
+.3+a|*
+
+  界定系统应从事和展示不同组成部分的工作。
+
+Han Handler  Re Receives a command or an event and performs what needs to happen.
+Unit 工作单位:对数据完整性的限制。 每个单位的工作都是原子更新。 Makes repositories available. 跟踪回收总量的新事件。
+Mes Message bus (internal)  Mes Handles commands and events by routing them to the appropriate handler.
+
+.2+a) *适应器*(科学)
+
+  具体实施从我们系统进入的接口
+to the outside world (I/O).
+
+Rep 仓储（Repository）  Ab Abstraction around persistent storage. 每个总量都有自己的储存库。
+Event Event publisher | Pushes events onto the external message bus.
+
+.2+apoint
+
+ Translate external inputs into calls into the service layer. 
+
+Web Web  Re Receives web requests and translates them into commands, passing them to the internal message bus.
+Event Event consumer  Event Reads events from the external message bus and translates them into commands, passing them to the internal message bus.
+
+N N/A  External External message bus (message broker) | A piece of infrastructure that different services use to intercommunicate, via events.
+|===
+((建筑、地图和表arch、开端=archix archsummsum))

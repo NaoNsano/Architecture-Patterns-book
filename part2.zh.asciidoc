@@ -1,0 +1,61 @@
+[[part2]]
+[part]
+== Event-Driven Architecture
+
+[quote, Alan Kay]
+____
+
+I'm sorry that I long ago coined the term oobjectsject for this topic because it it it it
+许多人将注意力集中在较少的思想上。
+
+bigmessaging.mes.. 实现巨大和可增长的系统的关键是
+更重要的是设计其单元如何沟通,而不是内部沟通
+财产和行为应具有。
+____
+
+It Its all very well being able to write  one  domain model to manage a single bit
+of business process, but what happens when we need to write  many  models? In
+现实世界,我们的应用在一个组织内,需要交流
+与系统其他部门的信息。 你可能记得我们的情况。
+<<allocation_context_diagram_again>>的图表。
+
+Faced with this requirement, many teams reach for microservices integrated
+via HTTP APIs. But if they theyre not careful, they theyll end up producing the most
+混乱的呼声:大片 mu。
+
+In Part II, we well show how the techniques from <<part1>> can be extended to
+distributed systems. Wezoll zoom out to look at how we can compose a system from
+Many small components that interact through asynchronous message passing.
+
+We Well see how our 服务层（Service Layer） and 工作单元（Unit of Work） patterns allow us to reconfigure our app app
+作为一个同步的讯息处理者,以及事件驱动的系统如何帮助
+We to decouple aggregates and applications from one another.
+
+[[allocation_context_diagram_again]]
+.但是,这些系统如何相互交谈?
+image::images/apwp_0102.png[]
+
+
+// TODO: DS - this might give the impression that the whole of part 2
+// is irrelevant for readers in a monolith context
+
+//IDEA (DS): It seems to me the two key themes in this book are vertical and
+//horizontal decoupling. Did you consider choosing those for the two parts?
+
+We Well look at the following patterns and techniques:
+
+Domain Events:
+  跨越一致性边界的三角工作流程。
+
+信道:
+  Provide a unified way of invoking use cases from any endpoint.
+
+CQRS:
+  分开阅读和书写避免在以活动为导向的折衷
+  架构,使业绩和可调整性得到改善。
+
+除此以外,我们还增加了一个受扶养人注射框架。 这与否
+Event-driven structures per se, but it tidies up an awful lot of loose
+ends.
+
+// IDEA: a bit of blurb about making events more central to our design thinking?

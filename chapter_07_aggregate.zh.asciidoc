@@ -1,0 +1,1100 @@
+[[chapter_07_aggregate]]
+== 综合症和致病症
+
+((agaggregates", ProProduct aggregate aggregate))
+((统一边界))
+((业绩form, consconsistency boundaries and and)))
+((Pro 生产物体)))
+在本章中,我们想重新审视我们的领域模式,以讨论囚犯问题
+and constraints, and see how our domain objects can maintain their own
+内部一致性,无论是从概念上还是在持续储存中。 Wellll
+讨论 &quot; 一致性边界 &quot; 的概念,并说明如何使它成为可能
+明确可帮助我们建设高性能软件,但不得损害
+可维持性。
+
+<<maps_chapter_06>>光显示对以湿 headed为首的地方的预测:
+a 新型物体,称为`Product`,用于包装多bat;
+旧的`allocate()`域服务可作为`Product`的一种方法提供。
+
+[[maps_chapter_06]]
+.增加产品总量
+image::images/apwp_0701.png[]
+
+
+为什么? Let Lets find out.
+
+
+[TIP]
+====
+本章的守则载于第07章。
+https://github.com/cosmicpython/code/tree/chapter_07_aggregate[on [.keep-together]#GitHub#]:
+
+----
+git clone https://github.com/cosmicpython/code.git
+cd code
+git checkout chapter_07_aggregate
+# or to code along, checkout the previous chapter:
+git checkout chapter_06_uow
+----
+====
+
+
+=== Why not Just Run Everything in a Spreadsheet?
+
+((dodomain model", usingusing spreadsheets instead of"))
+((spspreadsheets, using instead of domain model"))
+域模式的要点是什么? 根本问题
+We tryingre trying to address?
+
+难道我们只是在一次散播中 run出一切? 我们的许多用户将是
+[.彻底]#delighted# by that. Business users  like  spreadsheets because
+它们是简单的、熟悉的,但却是巨大的强大。
+
+((CCSV over SMTP structures"))
+事实上,大量的业务流程通过人工发送来运作
+电子邮件后发。 This "CSV over SMTPTP structures has
+初步复杂程度低,但往往不很好,因为困难
+to apply logic and maintain consistency.
+
+// IDEA: better examples?
+
+允许谁看待这一特定领域? Who alloweds allowed to update it? 什么
+当我们试图命令 -- -- 350名主席,或10 000 000张桌子? Can an employee
+有负工资?
+
+这些是制度的限制因素。 我们撰写的许多领域逻辑存在
+to enforce these constraints in order to maintain the invariants of the
+system.  invariants  are the things that have to be true whenever we finish whenever we finish
+an operation.
+
+
+=== Invariants, Constraints, and Consistency
+
+((varinvariantsants, varinvariants, constraints, and consistency"))
+((dodomain model", "invariants, constraints, and consistency")))
+这两个词有些可以互换,但一个分数是:
+限制我们模式的规则可以进入,而 &quot; 敌方 &quot; 则
+更确切地说,这一条件总是真实的。
+
+((限制))
+如果我们正在制定旅馆订票制度,我们可能会有双重限制。
+不允许预订。 这支持一种 in言,即一个房间不能有更多房间
+同一夜晚的订票不在此列。
+
+((消费))
+当然,有时我们可能需要暂时取消规则。 或许我们
+由于要人订票,需要uff住周围的房间。 虽然我们正在移动
+在记忆中放映,我们可能翻一番,但我们的域模型
+应确保在我们完成时,我们最终处于一个一致的最终状态,
+Where the invariants are met. 如果我们能够找到一种办法来照顾我们的所有客人,
+我们应当引起错误,拒绝完成行动。
+
+让我们看一看我们商业要求的几个具体例子;我们首先要这样做:
+
+[quote, The business]
+____
+单行可随时只分配给一个批次。
+____
+
+((企业规则",varinvariants, constraints, and consistency")))
+这是强加于人的一种商业规则。 变式是:
+订单分数为零或一个零,但从未超过一个。
+We need to make sure that our code never accidentally calls `Batch.allocate()`
+on two different batches for the same line, and currently, there theres nothing
+在那里明确阻止我们这样做。
+
+
+==== Invariants, Concurrency, and Locks
+
+((企业规则",varinvariants, concurrency, and lockslock)))
+让我们审视一下我们的另一个业务规则:
+
+[quote, The business]
+____
+如果现有数量低于某一批量,我们可以分配到
+订单数量。
+____
+
+((varinvariantsants, varinvariants, concurrency, and lockslock)))
+这里的制约因素是,我们能够分配的库存比可以得到的存货多
+batch, so we never oversell stock by allocating two customers to the same
+例如,身体ush。 Every time we update the state of the system, our code needs
+to ensure that we donariant break the invariant, which is that the available
+数量必须大于或等于零。
+
+在单一读者、单一用户应用程序中,我们相对容易使用
+Maintain this invariant. 我们只能在一段时间内分出一个线,
+如果没有库存,就会出现错误。
+
+((消费))
+当我们提出 &quot; 同意 &quot; 的想法时,情况就更加困难。 Suddenly we
+可以同时为多重订单分配库存。 我们可能
+甚至在处理变更的同时分配订单
+#themselves#.
+
+((数据库表中锁))
+我们通常通过在我们的数据库表中采用 &quot; 锁点 &quot; 来解决这个问题。 This
+防止两个行动在同一行同时发生
+表
+
+在我们开始考虑扩大我们的应用时,我们认识到我们的模式
+对所有可用的批量分配线可能不是规模的。 如果我们的进程
+每小时数以万计的命令和数以千计的命令
+order lines, we can cant hold a lock over the whole `batches` table for
+每一个单单单方的都至少会陷入僵局或出现业绩问题。
+
+
+=== 什么是综合的?
+
+((agaggregates", aboutaboutabout))
+(( &quot; Concurrency", "allowing for greatest degree of of)))
+((varinvariantsants, proprotecting while allowing concurrency")))
+OK, so if we can cant lock the whole database every time we want to allocate an
+秩序线,我们应该做些什么? 我们要保护我们的内在。
+制度,但允许最广泛地同意。 Maintaining our
+违规者不可避免地意味着防止同时发信;如果多个用户能够使用
+同时分配`DEADLY-SPOON`,我们面临过路的危险。
+
+On the other hand, there,s no reason we can allocatet allocate `DEADLY-SPOON` at the
+same time as `FLIMSY-DESK`. 安全地分配两个产品
+同时,因为没有涵盖这两个人的v言。 我们需要他们
+to be consistent with each other.
+
+((分配模式))
+((dodomain driven design (DDD)", "聚合（Aggregate） pattern"))
+聚合（Aggregate） 型式是DDD社区的一个设计模式,帮助我们
+to resolve this tension. 分类法仅是一个域物体。
+其他域物体,让我们把整个收藏作为一个单一单位处理。
+
+修改总量内物体的唯一办法是将整个物体装载
+事情,并呼吁采用整体方法。
+
+((收集))
+随着模式变得更为复杂,更多的实体和价值目标日益增长,
+在一张密码中相互参照,很难追踪谁。
+可以修改什么。 尤其是当我们像我们那样在模式上有收collect时。
+(各批是收集的),提出一些实体的良好想法
+更改有关物体的单一入境点。 It makes the system
+在概念上比较简单和容易解释你是否提名一些物体
+in charge of consistency for the others.
+
+For example, if weartre building a shopping site, the Cart might make a good
+合计:它收集了我们可以作为一个单一单位处理的项目。
+Importantly, we want to load the entire basket as a single blob from our data
+store. 我们don想同时提出两项修改 basket子的要求,或者我们
+有可能发生意外意外事故。 相反,我们想要对每一种变化作出改动。
+用单一数据库交易进行 run子。
+
+((统一边界))
+We dondont want to modify multiple baskets in a transaction, because there's no
+同时改变若干客户 basket子的使用情况。 Each
+responsible子是一个单一的 &quot; 消费边界 &quot; ,负责维持自己的边界
+invariants.
+
+[quote, Eric Evans, Domain-Driven Design blue book]
+____
+AGGREGATE是一组相关物体,我们将其视为一个单位
+数据变动的目的。
+((EEvans, Ericric))
+____
+
+Per Evans, our aggregate has a root entity (the Cart) that encapsulates access
+to items. Each item has its own identity, but other parts of the system will always
+仅指《宪章》作为一个不可分割的整体。
+
+TIP: Just as we sometimes use pass:[cocodecoem> leading underscorescore/em></code>] to mark methods or functions
+    As privateprivate," you can think of aggregates as being the "public" classes of our
+    model  model  model  model
+
+=== 选择综合征
+
+((业绩",使用总量的影响 aggregate))
+((agaggregates", chochoosing an aggregrate", id="ix aggch"))
+我们应当为我们的系统使用什么总量? The choice is somewhat arbitrary,
+但它很重要。 总量将是我们确信的边界。
+每项行动都是在一贯状态下结束的。 这有助于我们推理我们的情况
+software and prevent weird race issues. 我们希望围绕着一个边界划定边界
+数量小的物体 -- -- 较小的、较好的、对性能来说 -- -- 必须
+彼此一致,我们需要给予这一边界一个良好的名称。
+
+((batbatchesches, collect collection ofcollect))
+The object we were manipulating under the cover is `Batch`. What do we call a
+收集批量? 我们应如何将系统内的所有工作区划成体系
+Discrete islands of consistency?
+
+We  could  use `Shipment` as our boundary. Each shipment contains several
+批次,他们都同时前往我们的仓库。 也许我们
+可使用`Warehouse`作为我们的边界:每个仓库都有许多bat,
+同时清点所有库存是合理的。
+
+然而,这两个概念都不符合我们的要求。 我们应当能够
+在一次 go中分配`DEADLY-SPOONs`或`FLIMSY-DESKs`,即使它们不在 go里
+同一仓库或同一批货物。 这些概念是错误的象征。
+
+When we allocate an order line, we,re interested only in batches
+that have the same SKU as the order line. 类似某种概念
+`GlobalSkuStock`可工作:为特定的SKU收集所有bat。
+
+It Its an unwieldy name, though, so after some bikeshedding via `SkuStock`, `Stock`,
+`ProductStock`, and so on, we decided to simply call it `Product`-after all,
+这是我们在探索我们面临的第一个概念
+domain language back in <<chapter_01_domain_model>>.
+
+((allallocate service", "al location against all batches with with))
+((batbatchesches,"al location against all batches using domain service")))
+因此,计划是这样:当我们想分配一个秩序线时,而不是要分配一个秩序线。
+<<before_aggregates_diagram>>, 在那里,我们查看所有`Batch`物体
+the world and pass them to the `allocate()` domain service..
+
+[role="width-60"]
+[[before_aggregates_diagram]]
+.之前:利用域网服务从所有战斗中拨款
+image::images/apwp_0702.png[]
+[role="image-source"]
+----
+[plantuml, apwp_0702, config=plantuml.cfg]
+@startuml
+scale 4
+
+hide empty members
+
+package "Service Layer" as services {
+    class "allocate()" as allocate {
+    }
+    hide allocate circle
+    hide allocate members
+}
+
+
+
+package "Domain Model" as domain_model {
+
+  class Batch {
+  }
+
+  class "allocate()" as allocate_domain_service {
+  }
+    hide allocate_domain_service circle
+    hide allocate_domain_service members
+}
+
+
+package Repositories {
+
+  class BatchRepository {
+    list()
+  }
+
+}
+
+allocate -> BatchRepository: list all batches
+allocate --> allocate_domain_service: allocate(orderline, batches)
+
+@enduml
+----
+
+((batbatchesches, kingasking Product to allocate against against))
+((Pro 生产物体 object, kingasking Product to allocate against its batchesches)))
+...wewell move to the world of <<after_aggregates_diagram>>, in which there is a new
+`Product`物体,用于我们定单线的特定SKU,并将负责
+关于SKU 的所有批次,我们可以为此采用`.allocate()`方法
+相反。
+
+[role="width-75"]
+[[after_aggregates_diagram]]
+.After: ask Product to allocate against its batches
+image::images/apwp_0703.png[]
+[role="image-source"]
+----
+[plantuml, apwp_0703, config=plantuml.cfg]
+@startuml
+scale 4
+
+hide empty members
+
+package "Service Layer" as services {
+    class "allocate()" as allocate {
+    }
+}
+
+hide allocate circle
+hide allocate members
+
+
+package "Domain Model" as domain_model {
+
+  class Product {
+    allocate()
+  }
+
+  class Batch {
+  }
+}
+
+
+package Repositories {
+
+  class ProductRepository {
+    get()
+  }
+
+}
+
+allocate -> ProductRepository: get me the product for this SKU
+allocate --> Product: product.allocate(orderline)
+Product o- Batch: has
+
+@enduml
+----
+
+((Pro 生产物体 object,cocode for for))
+Let Lets see how that looks in code form:
+
+[role="pagebreak-before"]
+[[product_aggregate]]
+.我们选择的总量,产品(热/分配/主要/模块间皮)
+====
+[source,python]
+[role="non-head"]
+----
+class Product:
+    def __init__(self, sku: str, batches: List[Batch]):
+        self.sku = sku  #<1>
+        self.batches = batches  #<2>
+
+    def allocate(self, line: OrderLine) -> str:  #<3>
+        try:
+            batch = next(b for b in sorted(self.batches) if b.can_allocate(line))
+            batch.allocate(line)
+            return batch.reference
+        except StopIteration:
+            raise OutOfStock(f"Out of stock for sku {line.sku}")
+----
+====
+
+<1.``Product``'s main identifier is the `sku`.
+
+K2 Our我们的`Product`级提到为SKU收集的`batches`。
+    ((allallocate service", movmoving to be a method on Product aggregate")))
+
+<3, Finally, we can move the `allocate()` domain service to
+    a method on the [.keep-together]#`Product`# aggregate.
+
+// IDEA (hynek): random nitpick: exceptions denoting errors should be
+// named *Error.  Are you doing this to save space in the listing?
+
+//IDEA: talk about magic methods on aggregates maybe?  ie, a non-aggregate entity
+//      might have a __hash__ so that we can put it into a set, but because you
+//      are never supposed to have a collection of aggregates, they could return
+//      an error for __hash__. or sumfink.
+
+NOTE: This `Product` might not look like what you'd expect a `Product`
+    model to look like. No price, no description, no dimensions.
+    我们的分配服务对其中任何事情都毫不关心。
+    这是受约束环境的力量;概念
+    一种产品与另一种产品有很大不同。
+    See the following sidebar for more discussion.
+    ((受限情况"、product产品概念和 concept))
+
+
+[role="nobreakinside less_space"]
+[[bounded_contexts_sidebar]]
+.分类、保密背景和微额服务
+*******************************************************************************
+((有条件))
+Evans和DDD社区最重要的贡献之一
+概念
+https://martinfowler.com/bliki/BoundedContext.html[_bounded contexts ].
+
+((dodomain driven design (DDD)", boundbounded contexts")))
+实质上,这是对试图抓住整个企业的反应
+into a single model.  customer 词是指与人民不同的东西。
+销售、客户服务、后勤、支助等。 Attributes
+在一种情况下需要的,在另一种情况下是无关紧要的;更有害的是,概念
+同一名字在不同情况下具有完全不同的含义。
+而不是试图建立单一模式(或阶级或数据库)以获取信息
+All the use cases, it its better to have several models, draw boundaries
+处理不同情况下的翻译
+明确。
+
+((micmicroservices", boundbounded contexts and and))
+这一概念非常有利于微型服务世界,在这种世界中,各有小额服务。
+微额服务可自由拥有自己的cuscustomermer概念及其自己的规则
+将它与其他微型服务相结合。
+
+In our example, the allocation service has `Product(sku, batches)`,
+电子商务将有 &quot; 生产(sku, description, price, image url,
+方面,等等 As a rule of thumb, your domain models should
+仅包括他们需要进行计算的数据。
+
+您是否拥有微型服务架构,关键考虑
+in choosing your aggregates is also choosing the bounded context that they
+将运作。 通过限制背景,你可以保持你的人数
+Totals low and their size manageable.
+
+((agaggregates", chochoosing an aggregrate", startref="ix aggch")))
+我们再次发现,我们不得不说,我们可以提出这一问题。
+这里应该得到的待遇,我们只能鼓励你们重新阅读。
+其他地方。 ow外线开端的Fowler联系是一个很好的起点,或者是
+(或确实,任何)DDD书将有一章或更多关于受约束的情况。
+
+*******************************************************************************
+
+=== One 聚合（Aggregate） = One 仓储（Repository）
+
+((agaggregates", ggone aggregrate &quot;#x3D; one Library repository)))
+((reprepositories", ggone aggregrate &quot;#x3D; one Library repository)))
+Once you define certain entities to be aggregates, we need to apply the rule
+它们是外界可公开查阅的唯一实体
+世界。 换句话说,我们所允许的唯一储存应该得到。
+repositories that return aggregates.
+
+NOTE: The rule that repositories should only return aggregates is the main place
+    在何处执行公约,使公约合在一起是我们走向我们的唯一途径
+    domain model. 难道破裂!
+
+((工作模式单位、UUoW和产品储存库))
+((Pro 生产目的 object))
+就我们而言,湿重从`Batch仓储（Repository）`转至`Product仓储（Repository）`:
+
+
+[[new_uow_and_repository]]
+.Our new UoW and Library (unit of work.py and Library.py)
+====
+[source,python]
+[role="skip"]
+----
+class AbstractUnitOfWork(abc.ABC):
+    products: repository.AbstractProductRepository
+
+...
+
+class AbstractProductRepository(abc.ABC):
+
+    @abc.abstractmethod
+    def add(self, product):
+        ...
+
+    @abc.abstractmethod
+    def get(self, sku) -> model.Product:
+        ...
+----
+====
+
+((Pro 生产物体 object,使用service服务层))
+((serviceservice layer",usingusing Product objects objects))
+((relobject-relational mappers (ORMs)", sociassociating right batches with Product objects objects)))
+The ORM layer will need some tweaks so that the right batches automatically get
+装载和与`Product`物体有关。  Rep是,
+模式意味着我们不得不对此感到担忧。 We can just use
+We `Fake仓储（Repository）` and then feed through the new model into our service
+Level to see how it looks with `Product` as its main entrypoint:
+
+[[service_layer_uses_products]]
+.服务层(机/地点/服务/服务级/服务级间)
+====
+[source,python]
+----
+def add_batch(
+    ref: str, sku: str, qty: int, eta: Optional[date],
+    uow: unit_of_work.AbstractUnitOfWork,
+):
+    with uow:
+        product = uow.products.get(sku=sku)
+        if product is None:
+            product = model.Product(sku, batches=[])
+            uow.products.add(product)
+        product.batches.append(model.Batch(ref, sku, qty, eta))
+        uow.commit()
+
+
+def allocate(
+    orderid: str, sku: str, qty: int,
+    uow: unit_of_work.AbstractUnitOfWork,
+) -> str:
+    line = OrderLine(orderid, sku, qty)
+    with uow:
+        product = uow.products.get(sku=line.sku)
+        if product is None:
+            raise InvalidSku(f"Invalid sku {line.sku}")
+        batchref = product.allocate(line)
+        uow.commit()
+    return batchref
+----
+====
+
+=== 业绩如何?
+
+((业绩",使用总量的影响 aggregate))
+((agaggregates", perperformance and and)))
+We've mentioned a few times that we were modeling with aggregates because we want
+to have high-performance software, but here we are loading  all  the batches when
+我们只需要一个。 You might expect that to be inefficient, but there are a few
+为什么我们在这里感到舒适。
+
+首先,我们有目的地模拟我们的数据,以便我们能够实现一个单一的数据
+向数据库查询,并单独更新,以维持我们的变化。 This
+业绩往往比提出大量特别询问的系统要好得多。 In
+我们往往发现,交易缓慢慢
+随着软件的不断发展,变得更为复杂。
+
+Second, our data structures are minimal and comprise a few strings and
+integers per row. We can easily load tens or even hundreds of batches in a few
+milliseconds.
+
+第三,我们预计,目前每个产品只有20批。
+一旦使用atch,我们就可以从我们的计算中扣除。 这意味着
+that the amount of data we were fetching shouldntt get out of control over time.
+
+If we  did  expect to have thousands of active batches for a product, we wed have
+a 几种选择。 对我们来说,我们可以用洗load装在bat上
+product. From the perspective of our code, nothing would change, but in the
+背景,SQLAlchemy将通过我们的数据页面。 这将导致更多的
+每种请求的行程都较小。 Because we need to find only a
+只要具备我们秩序的充分能力,我们就可能工作得很好。
+
+[role="nobreakinside less_space"]
+.退休人员的行使
+******************************************************************************
+((agaggregates", exexercise for the reader")))
+You've just seen the main top layers of the code, so this shouldn hardt be too hard,
+但是,我们想从`Batch`开始执行`Product`的总量,
+正如我们所做的那样。
+
+当然,你可以从先前的列名中支,和che贝/帕斯提,但即使是这样,也能从前一份名单中找到。
+如果你这样做,你仍然不得不自行解决一些挑战,
+如在机构风险管理中添加模式,并确保所有移动部分能够
+相互交谈,我们希望这将具有启发性。
+
+Youllll find the code https://github.com/cosmicpython/code/tree/chapter_07_aggregate_exercise[on GitHub].
+We Weve put in a checheatingating implementation in the delegates to the existing
+`allocate()`功能,因此,你应当能够向现实发展
+thing.
+
+((pypytest", py@pytest.skip"))
+We Weve marked a couple of tests with `@pytest.skip()`. 你之后改为:
+本章其余部分,回到了这些测试中,以便在实施过程中取得进展。
+编号。 Bonus points if you can get SQLAlchemy to do them for you by
+magic!
+
+******************************************************************************
+
+如果别人都失败,我们只想看到一种不同的总量。 也许我们可以
+按区域或仓库分批。 也许我们可以重新设计我们的数据
+关于装运概念的准入战略。 综合模式的设计
+帮助管理围绕一致性和业绩的一些技术限制。
+There isn't  one  correct aggregate, and we should feel comfortable changing our
+如果我们发现我们的边界,就会给业绩带来影响。
+
+
+=== 最接近
+
+((currconcurrency", opoptimistic concurrency with version numbers numbers, id=conix concoptco)))
+((与版本编号相对应)
+((agaggregates", opoptimistic concurrency with version numbers numbers, id="ix aggopticon")))
+我们拥有新的总量,因此我们解决了选择的概念问题
+具有一致性的物体。 Let Lets now spend a little
+讨论如何在数据库一级执行数据完整性的时间。
+
+NOTE: This section has a lot of implementation details; for example, some of it
+    具体员额。 但更普遍的是,我们表现出一种管理方式
+    同意问题,但只是一种办法。 实际需要
+    面积因项目而异。 You shouldn tot expect to be able to
+    此处的 code贝和 past代代码制作。
+    ((PPostgreSQL", manmanaging concurrency issues")))
+
+((数据库表中的锁定)
+We dondont want to hold a lock over the entire `batches` table, but how will we
+只对某个特定的SKU的row子实行lock锁?
+
+((versionversion numbers","in the products table, implementing optimistic locking")))
+One answer is to have a single attribute on the `Product` model that acts as a marker for
+整个国家改革已经完成,并将其作为单一资源
+that concurrent workers can fight over. 如果两项交易改为:
+同时世界`batches`的状态,两者都希望更新
+&quot; `allocations` &quot; 表格,我们也努力更新
+`version_number` in the `products` table, in such a way that only one of them
+可以赢得胜利,世界保持一贯。
+
+((交易、承诺、试图更新产品))
+(( &quot; 生产目标 &quot; ,试图同时更新的两项交易))
+<<version_numbers_sequence_diagram>>说明同时有两个
+同时进行 &quot; 阅读 &quot; 业务的交易,以便看到
+a `Product`,例如`version=3`。 They both call `Product.allocate()`
+in order to modify a state. 但是,我们建立了数据库完整性
+仅允许其中一项规则用于`commit`新`Product`
+with `version=4`, and the other update is rejected.
+
+TIP: Version numbers are just one way to implement optimistic locking. You
+    通过确定邮政交易的孤立,可以实现同样的目标
+    `SERIALIZABLE`级,但经常出现严重性能成本。
+    Version numbers also make implicit concepts explicit.
+    ((PPostgreSQL", SERSERIALIZABLE transaction isolation level")))
+
+[[version_numbers_sequence_diagram]]
+.Sequence diagram: two transactions attempting a concurrent update on [.keep-together]#`Product`#
+image::images/apwp_0704.png[]
+[role="image-source"]
+----
+[plantuml, apwp_0704, config=plantuml.cfg]
+@startuml
+scale 4
+
+entity Model
+collections Transaction1
+collections Transaction2
+database Database
+
+
+Transaction1 -> Database: get product
+Database -> Transaction1: Product(version=3)
+Transaction2 -> Database: get product
+Database -> Transaction2: Product(version=3)
+Transaction1 -> Model: Product.allocate()
+Model -> Transaction1: Product(version=4)
+Transaction2 -> Model: Product.allocate()
+Model -> Transaction2: Product(version=4)
+Transaction1 -> Database: commit Product(version=4)
+Database -[#green]> Transaction1: OK
+Transaction2 -> Database: commit Product(version=4)
+Database -[#red]>x Transaction2: Error! version is already 4
+
+@enduml
+----
+
+
+[role="nobreakinside less_space"]
+.Optimistic Concurrency Control and Retries
+********************************************************************************
+
+此处所执行的所谓 &quot; 优化 -- -- 应急控制 &quot; ,因为
+我们的默认假设是,如果两个用户想要的话,所有东西都将被罚款。
+修改数据库。 我们认为它们不可能发生冲突
+彼此相处,这样,我们就能够走下去,确保我们有办法去做。
+如有[全方位]#problem#。
+
+((pepessimistic concurrency"))
+((数据库表中的锁定)
+(( &quot; UPDATE statement &quot; ))
+Pessimistic  concurrency control works under the assumption that two users
+我们将导致冲突,我们想防止所有情况下的冲突,因此
+我们锁定一切只是安全。 例如,这将意味着锁定
+或使用++SELECT FOR UPDATE++-wewere预发
+出于业绩原因,我们在实际生活中排除了那些人
+想对你进行一些评价和衡量。
+
+((数据库表中的锁定)
+With pessimistic locking, you dondont need to think about handling failures
+因为该数据库将防止你使用(尽管你确实需要考虑)
+关于僵局)。 With optimistic locking, you need to explicitly handle
+冲突(很可能不可能)发生故障。
+
+((retretries", opoptimistic concurrency control and and)))
+处理失败的通常方式是从失败的行动中收回失败的作业。
+beginning. Imagine we have two customers, Harry and Bob, and each submit an order
+for `SHINY-TABLE`. Both threads load the product at version 1 and allocate
+stock. The database prevents the concurrent update, and Bob's order fails with
+错误。 When we  retry  the operation, Bob's order loads the product at
+第2版并试图再次分配。 If there is enough stock left, all is
+well; otherwise, he'll receive `OutOfStock`. Most operations can be retried this
+处理共同问题的方式。
+
+Read more on retries in <<recovering_from_errors>> and <<footguns>>.
+********************************************************************************
+
+
+==== 数量执行方案
+
+(( &quot; 生产目标 &quot; 、 &quot; 实施 &quot; 的换号))
+((versionversion numbers","implementation options for for))
+基本有三个实施版本的备选方案:
+
+1. `version_number`身处域内;我们添加到`Product`建筑商,
+   和`Product.allocate()`负责增加。
+
+2. The service layer could do it! The version number isn't  strictly  a domain
+   因此,我们的服务层可以假定目前版本的数目
+   储存处将`Product`附在后,服务层将增加
+   以前为`commit()`。
+
+3. Since it its arguably an infrastructure concern, the UoW and Library
+   可以用磁力做到这一点。 存储处可查阅任何版本号码
+   其回收产品,当UoW承诺时,它可以增加
+   其所知道的产品数量,假定它们已经改变。
+
+备选案文3是理想的,因为没有真正的方式这样做而无须这样做
+假定 all 产品已经改变,因此,零件数增加
+When we dondont have to.footnote:[Perhaps we could get some ORM/SQLchemy magic to tell
+当一个物体是ty脏时,我们就将如何在一般情况下工作 -- -- 例如,在一般情况下 -- -- 比如说,
+`Csv仓储（Repository）`? ]
+
+备选方案2涉及将服务国之间的反向国家责任混为一谈
+层级和域层,因此也很少有麻.。
+
+因此,尽管文本号为 &quot; don't  have  &quot; ,但最终却是一个领域问题,
+你可以决定最清洁的折衷办法是将它们置于以下领域:
+
+[[product_aggregate_with_version_number]]
+.我们选择的总量,产品(热/分配/主要/模块间皮)
+====
+[source,python]
+----
+class Product:
+    def __init__(self, sku: str, batches: List[Batch], version_number: int = 0):  #<1>
+        self.sku = sku
+        self.batches = batches
+        self.version_number = version_number  #<1>
+
+    def allocate(self, line: OrderLine) -> str:
+        try:
+            batch = next(b for b in sorted(self.batches) if b.can_allocate(line))
+            batch.allocate(line)
+            self.version_number += 1  #<1>
+            return batch.reference
+        except StopIteration:
+            raise OutOfStock(f"Out of stock for sku {line.sku}")
+----
+====
+
+<1 There!
+
+TIP: If you're scratching your head at this version number business, it might
+    帮助记住  编号 是重要的。 重要内容
+    每当我们改变`Product`数据库行时,就修改该数据库。
+    `Product`合计。 该版本是一个简单、人道和可理解的方式
+    to model a thing that changes on every write, but it could equally be a
+    每一次随机UID。
+    ((currconcurrency", opoptimistic concurrency with version numbers", startref=conix concoptco)))
+    ((与版本编号相当,开头语=opix opticoncop)))
+    ((agaggregates", opoptimistic concurrency with version numbers", startref="ix aggopticon")))
+
+
+=== 对我们数据完整性规则的测试
+
+((datadata integrity","testing for for, id="ix daint"))
+((agaggregates", testtesting for data integrity rules", id="ix aggtstdidi))
+((testtesting", "for data integrity rules", id="ix tstdist)))
+现在,确保我们能够得到我们想要的行为:如果我们有两种行为的话。
+同时试图对同一`Product`进行分配,其中之一是
+应当失败,因为它们能够更新版本。
+
+((工作时间))
+((timetime.sleep function", rere producing concurrency behavior with")))
+((currconcurrency", rere producing behavior with time.sleep function")))
+((交易、模拟缓慢交易))
+First, let's simulate a "slow" transaction using a function that does
+allocation and then does an explicit sleep:footnote:[`time.sleep()` works well
+in our use case, but it its not the most reliable or efficient way to reproduce
+紧急津贴。 Consider using semaphores or similar synchronization primitives
+在你的read之间分享,以获得更好的行为保障。 ]
+
+[[time_sleep_thread]]
+.time.sleep can reproduce concurrency behavior (tests/integration/test uow.py)
+====
+[source,python]
+----
+def try_to_allocate(orderid, sku, exceptions):
+    line = model.OrderLine(orderid, sku, 10)
+    try:
+        with unit_of_work.SqlAlchemyUnitOfWork() as uow:
+            product = uow.products.get(sku=sku)
+            product.allocate(line)
+            time.sleep(0.2)
+            uow.commit()
+    except Exception as e:
+        print(traceback.format_exc())
+        exceptions.append(e)
+----
+====
+
+
+((tegintegration tests", "for concurrency behavior")))
+((currconcurrency", tegintegration test for for)))
+然后,我们测试同时两次援引这一缓慢分配,同时使用
+threads:
+
+[[data_integrity_test]]
+.An integration test for concurrency behavior (tests/integration/test uow.py)
+====
+[source,python]
+----
+def test_concurrent_updates_to_version_are_not_allowed(postgres_session_factory):
+    sku, batch = random_sku(), random_batchref()
+    session = postgres_session_factory()
+    insert_batch(session, batch, sku, 100, eta=None, product_version=1)
+    session.commit()
+
+    order1, order2 = random_orderid(1), random_orderid(2)
+    exceptions = []  # type: List[Exception]
+    try_to_allocate_order1 = lambda: try_to_allocate(order1, sku, exceptions)
+    try_to_allocate_order2 = lambda: try_to_allocate(order2, sku, exceptions)
+    thread1 = threading.Thread(target=try_to_allocate_order1)  #<1>
+    thread2 = threading.Thread(target=try_to_allocate_order2)  #<1>
+    thread1.start()
+    thread2.start()
+    thread1.join()
+    thread2.join()
+
+    [[version]] = session.execute(
+        "SELECT version_number FROM products WHERE sku=:sku",
+        dict(sku=sku),
+    )
+    assert version == 2  #<2>
+    [exception] = exceptions
+    assert "could not serialize access due to concurrent update" in str(exception)  #<3>
+
+    orders = session.execute(
+        "SELECT orderid FROM allocations"
+        " JOIN batches ON allocations.batch_id = batches.id"
+        " JOIN order_lines ON allocations.orderline_id = order_lines.id"
+        " WHERE order_lines.sku=:sku",
+        dict(sku=sku),
+    )
+    assert orders.rowcount == 1  #<4>
+    with unit_of_work.SqlAlchemyUnitOfWork() as uow:
+        uow.session.execute("select 1")
+----
+====
+
+<1> 我们开始两大read,将能可靠地产生我们的共同行为
+    want: `read1, read2, write1, write2`.
+
+<2. 我们声称,该文本只增加了一次。
+
+<3. 如果我们愿意,我们也可以检查具体的例外。
+
+&quot; 4. &quot; ,我们双che地看到,只有一笔拨款才开始。
+
+// TODO: use """ syntax for sql literal above?
+
+
+==== 利用数据库的交易[整体]#Isolation Levels#
+
+((transtransactions", usingusing to enforce concurrency rules"))
+((消费、使用数据库交易的融资规则))
+为了使检验结果跟上,我们可以确定交易的孤立程度
+on our session:
+
+[[isolation_repeatable_read]]
+.设定会议隔离级别(工作时间/地点/服务/单位/单位/单位/单位。 间))
+====
+[source,python]
+----
+DEFAULT_SESSION_FACTORY = sessionmaker(
+    bind=create_engine(
+        config.get_postgres_uri(),
+        isolation_level="REPEATABLE READ",
+    )
+)
+----
+====
+
+TIP: Transaction isolation levels are tricky stuff, so it worths worth spending time
+    understanding https://oreil.ly/5vxJA[the Postgres documentation].footnote:[Iff
+    如果你不使用 &quot; 学位 &quot; ,则需要阅读不同的文件。
+    毫无疑问,不同的数据库都有相当不同的定义。
+    Oraclecles `SERIALIZABLE`相当于`REPEATABLE READ`级以下
+    [.keep-together]#example#.]
+    ((PPostgreSQL", documentdocumentation for transaction isolation levels"))
+    ((隔离程度(交易))))
+
+==== Pessimistic Concurrency Control Example: SELECT FOR UPDATE
+
+((pepessimistic concurrency", exexample, SELECT FOR UPDATEATE))
+(( &quot; 消费 &quot; 、 &quot; 消费 &quot; 、 &quot; 消费 &quot; 、 &quot; 消费 &quot; 、 &quot; 消费 &quot; 等同范例 &quot; )))
+(( &quot; UPDATE statementCT, pepessimistic concurrency control example with with)))
+解决这一问题有多种办法,但有一点。 https://oreil.ly/i8wKL[`SELECT FOR UPDATE`]
+产生不同的行为;不得同时进行两项交易
+在同一行内读:
+
+((QSQLAlchemyche,DSusing DSL to specify FOR UPDATEATE))
+`SELECT FOR UPDATE` is a way of picking a row or rows to use as a lock
+(尽管这些don子必须是你更新的row子)。 If two
+交易同时试图用`SELECT FOR UPDATE`一行
+获胜,而另一方将等到释放时。 因此,这是一个例子
+of pessimistic concurrency control.
+
+Here thes how you can use the SQLchemy DSL to specify `FOR UPDATE` at
+查询时间:
+
+[[with_for_update]]
+.SQLAlchemy with for update (src/allocation/adapters/repository.py)
+====
+[source,python]
+[role="non-head"]
+----
+    def get(self, sku):
+        return (
+            self.session.query(model.Product)
+            .filter_by(sku=sku)
+            .with_for_update()
+            .first()
+        )
+----
+====
+
+
+这将产生改变消费模式的效果。
+
+[role="skip"]
+----
+read1, read2, write1, write2(fail)
+----
+
+to
+
+[role="skip"]
+----
+read1, write1, read2, write2(succeed)
+----
+
+((PPostgreSQL", AnAnti-Patterns: Read-Modify-Write Cyclescle)))
+((ritread-modify-write failure mode"))
+Some people refer to this as the "read-modify-writerit failure mode.
+Read https://oreil.ly/uXeZI["PostgreSQL Anti-Patterns: Read-Modify-Write Cycles"] for a good [.keep-together]#overview#.
+
+//TODO maybe better diagrams here?
+
+((datadata integrity", testtesting for for, startref="ix daint"))
+((testtestingtest,  datafor data integrity rules", startref="ix tstdist)))
+我们确实有时间讨论`REPEATABLE READ`之间的所有权衡问题
+and `SELECT FOR UPDATE`, or optimistic versus pessimistic locking in general.
+但是,如果你有象我们所显示的那种检验,你可以具体说明行为方式。
+你希望看到它如何改变。 你也可以利用测试作为基础
+((agaggregates", testtesting for data integrity rules", startref="ix aggtstdidi))
+
+
+
+=== Wrap-Up
+
+((agaggregates", "and consistency boundaries recap"))
+围绕消费控制的具体选择因企业而异
+环境与储存技术的选择,但我们要实现这一点
+Chapter back to the conceptual idea of an aggregate: we explicitly model an
+反对作为我们模式某些子集的主要切入点,并正在
+负责实施适用于所有人的企业规则
+这些物体。
+
+((有效综合设计(Vernon) Design))
+((ughVernon, Vaughn"))
+((dodomain driven design (DDD)", chochoosing the right aggregate, references on references)))
+选择正确的总量是关键,你可再次作出决定
+over time. You can read more about it in multiple DDD books.
+We also recommend these three online papers on
+https://dddcommunity.org/library/vernon_2011[effective
+Vaughn Vernon (the "red book author author).
+
+((agaggregates", propros and cons or trade-offs")))
+<<chapter_07_aggregate_tradoffs>>对执行 &quot; 综合分类 &quot; 模式的权衡有一些想法。
+
+[[chapter_07_aggregate_tradoffs]]
+[options="header"]
+.总计: 权衡
+|===
+ProProsConCons
+a a
+* Python might not have officialofficial, public and private methods, but we do have
+  The underscores convention, because it its often useful to try to indicate what's for
+  interinternal. use and what whats for outoutside code. to use. 选择总量
+  仅次要:请你决定哪一个领域模式
+  是公开的,也是公开的。
+
+* 围绕明确一致的边界来模拟我们的行动有助于我们避免
+  performance problems with our ORM.
+  ((业绩form, consconsistency boundaries and and)))
+
+* 仅负责国家对其附属模式的修改
+  使这一制度更易于推测,并使得更容易控制违规者。
+
+a a
+* 然而,新的开发商又有一个新概念。 Explaining entities versus
+  价值物体已经是精神负荷;现在有第三类域
+  示范物体?
+
+* Sticking rigidly to the rule that we modify only one aggregate at a time is a
+  big mental shift.
+
+* 实现总量之间的最终一致性可能是复杂的。
+|===
+
+
+[role="nobreakinside less_space"]
+.综合症和致病症
+*****************************************************************
+((消费边界,、consrecap"))
+
+分类是你进入领域模式的:
+    通过限制可以改变事情的方式,
+    我们使这个制度更易于说明问题。
+
+分类负责统一边界:
+    综合工作能够管理我们的业务规则
+    about invariants as they apply to a group of related objects.
+    检查其内物体的合计工作
+    汇款相互一致,符合我们的规则;
+    拒绝违背规则的修改。
+
+分类和汇合问题包括:
+    在考虑实施这些一致性检查时,我们
+    结束对交易和锁定的思考。 选择
+    正确的总体情况是业绩和概念
+    安排你的工作。
+    ((消费、分类和消费问题))
+
+*****************************************************************
+
+[role="pagebreak-before less_space"]
+=== 第一部分
+
+((第一部分结尾的比较图))
+Do you remember <<recap_components_diagram>>, the diagram we showed at the
+开始<<part1>>,到我们正在审查的地方?
+
+[role="width-75"]
+[[recap_components_diagram]]
+.A component diagram for our app at the end of Part I
+image::images/apwp_0705.png[]
+
+因此,我们在第一部分末尾。 我们取得了哪些成就? We've
+如何建立一个由一套办法行使的领域模式
+高级别单位测试。 我们的测验是活的文件:它们描述了我们的情况
+我们同意我们业务的系统规则的行为
+stakeholders-in nice readable code. 当我们的业务要求发生变化时,我们
+相信我们的试验将有助于我们证明新的功能,
+当新的开发者加入项目时,他们可以阅读我们的测试,以了解如何理解
+工作。
+
+We Weve decoupled the infrastructural parts of our system, like the database and
+API handlers, so that we can plug them into the outside of our application.
+这有助于我们保持密码的良好组织,并阻止我们建设
+big ball of mud.
+
+((adaadapters", portports-and-adapters inspired patterns")))
+((portports", portports-and-adapters inspired patterns")))
+适用受扶养人换代原则,并使用
+Port-and-adapters-inspired patterns like 仓储（Repository） and 工作单元（Unit of Work）, weveve
+使得能够用高容量和低容量进行TDD,并能保持一种
+Health test pyramid. We can test our system edge to edge, and the need for
+一体化和端对端测试保持在最低水平。
+
+最后,我们谈论了统一边界的概念。 我们不想这样做
+只要我们作出改变,我们就将整个系统锁定下来,这样我们就不得不选择哪些系统。
+零件彼此一致。
+
+就小型系统而言,这是你需要做的一切,并且要利用各种想法。
+domain-driven design. 你现在拥有建立数据库分析领域的工具
+代表贵企业专家共同语言的模式。 Hurrah!
+
+NOTE: At the risk of laboring the point-weweve been at pains to point out that
+    每种模式都以成本计算。 Each layer of indirection has a price in terms
+    我们守则中的复杂性和重复,并将与方案者混 of
+    who.ve never seen these patterns before. 如果你的附录基本上是简单的CRUD
+    wrapper around a database and isn't likely to be anything more than that
+    在可预见的未来, you dondont需要这些模式。 未来
+    Use Django, and save yourself a lot of bother.
+    ((CRCRUD wrapper around a databaseUD))
+    ((patpatterns, determining whether you need to use them")))
+
+在第二部分中,我们想想谈一谈一个更大的专题:如果汇总是我们的。
+边界,而且我们只能及时更新边界,我们如何示范进程
+跨界一致?
